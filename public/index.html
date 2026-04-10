@@ -339,7 +339,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
       <div class="live-badge"><div class="live-dot"></div>Live</div>
     </div>
 
-    <div class="setup-card" id="setupCard" style="display:none">
+    <div class="setup-card" id="setupCard">
       <div class="setup-title">⚡ Add your API keys to unlock live predictions</div>
       <div class="setup-desc">Get your Anthropic key at <a href="https://platform.anthropic.com" target="_blank">platform.anthropic.com</a> and cricket data key at <a href="https://cricketdata.org" target="_blank">cricketdata.org</a></div>
       <div class="setup-row">
@@ -640,7 +640,7 @@ const RECENT_RESULTS = [
 
 // ── Init ───────────────────────────────────────────────────
 function init() {
-  if (apiKey) 
+  if (apiKey) document.getElementById('setupCard').style.display = 'none';
   if (settings.dark) document.body.classList.add('dark');
   applyToggles();
   renderFixtures();
@@ -657,7 +657,7 @@ function saveKeys() {
   if (ak && !ak.startsWith('sk-ant-')) { alert('Anthropic key should start with sk-ant-'); return; }
   if (ak) { apiKey = ak; localStorage.setItem('pkf_claude', ak); }
   if (ck) { cricketKey = ck; localStorage.setItem('pkf_cricket', ck); }
-  
+  document.getElementById('setupCard').style.display = 'none';
   addChatMsg('ai', '✅ Keys saved! I can now generate live AI predictions and pull real cricket data. Ask me anything!');
 }
 
@@ -761,7 +761,7 @@ async function fetchPred(id) {
   for (let i=0;i<steps.length;i++) { await delay(600+i*500); document.getElementById(steps[i]+'-'+id)?.classList.add('done'); }
   if (!apiKey) { const d = demoPred(f); detailCache[id]=d; renderDetail(id,d,'pred'); updateBubble(id,d); return; }
   try {
-    const res = await fetch('/.netlify/functions/claude',{
+    const res = await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
       body:JSON.stringify({
@@ -1008,7 +1008,7 @@ async function sendChat() {
   addChatLoading();
   chatHistory.push({role:'user',content:txt});
   try {
-    const res=await fetch('/.netlify/functions/claude',{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
       body:JSON.stringify({
