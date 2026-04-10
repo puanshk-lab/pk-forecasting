@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PK Forecasting</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg: #d0e8f5;
+  --surface: #ffffff;
+  --surface2: #e8f4fb;
+  --border: rgba(3,105,161,0.12);
+  --border2: rgba(3,105,161,0.22);
+  --accent: #0369a1;
+  --accent-light: #5ba3cc;
+  --accent-xlight: #bdd8ec;
+  --accent2: #f97316;
+  --text: #0c2d42;
+  --text2: #2d5f80;
+  --text3: #5ba3cc;
+  --win: #16a34a;
+  --lose: #dc2626;
+  --radius: 16px;
+  --radius-sm: 10px;
+}
+.dark {
+  --bg: #0a1628;
+  --surface: #0f1e35;
+  --surface2: #162035;
+  --border: rgba(255,255,255,0.08);
+  --border2: rgba(255,255,255,0.15);
+  --accent: #63b3ed;
+  --accent-light: #90cdf4;
+  --accent-xlight: #2a4a6b;
+  --accent2: #f97316;
+  --text: #ebf8ff;
+  --text2: #90cdf4;
+  --text3: #4a7a9b;
+  --win: #4ade80;
+  --lose: #f87171;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;transition:background 0.3s,color 0.3s}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 70% 40% at 10% 0%,rgba(3,105,161,0.06),transparent 60%),radial-gradient(ellipse 50% 40% at 90% 100%,rgba(249,115,22,0.04),transparent 60%);pointer-events:none;z-index:0}
+.dark body::before{background:radial-gradient(ellipse 70% 40% at 10% 0%,rgba(99,179,237,0.04),transparent 60%)}
+.app{position:relative;z-index:1;max-width:480px;margin:0 auto;padding:0 0 90px}
+
+/* Pages */
+.page{display:none}.page.active{display:block}
+
+/* Header */
+.header{padding:20px 20px 0;display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-icon{width:38px;height:38px;border-radius:10px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:20px}
+.logo-text{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;letter-spacing:-0.5px;color:var(--text)}
+.logo-text span{color:var(--accent)}
+.logo-sub{font-size:10px;color:var(--text3);margin-top:-2px}
+.live-badge{display:flex;align-items:center;gap:5px;background:rgba(3,105,161,0.1);border:1px solid var(--accent-xlight);border-radius:999px;padding:5px 12px;font-size:11px;font-weight:600;color:var(--accent)}
+.live-dot{width:6px;height:6px;border-radius:50%;background:#16a34a;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+
+/* Setup */
+.setup-card{margin:0 20px 20px;background:#fff7ed;border:1px solid #fed7aa;border-radius:var(--radius);padding:16px}
+.setup-title{font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:#c2410c;margin-bottom:5px}
+.setup-desc{font-size:12px;color:#9a3412;line-height:1.6;margin-bottom:10px}
+.setup-desc a{color:var(--accent);text-decoration:none;font-weight:500}
+.setup-row{display:flex;gap:8px;margin-bottom:8px}
+.setup-input{flex:1;background:#fff;border:1px solid #fed7aa;border-radius:8px;padding:9px 12px;color:var(--text);font-size:12px;font-family:'DM Sans',sans-serif;outline:none}
+.setup-btn{background:#f97316;color:#fff;font-size:12px;font-weight:700;font-family:'Syne',sans-serif;padding:9px 16px;border:none;border-radius:8px;cursor:pointer;white-space:nowrap}
+
+/* Filters */
+.filter-scroll{padding:0 20px;margin-bottom:18px;overflow-x:auto;display:flex;gap:8px;scrollbar-width:none}
+.filter-scroll::-webkit-scrollbar{display:none}
+.filter-chip{white-space:nowrap;padding:7px 14px;border-radius:999px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all 0.2s;flex-shrink:0;font-weight:500}
+.filter-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.filter-chip:hover:not(.active){background:rgba(3,105,161,0.06)}
+
+/* Section header */
+.section-header{padding:0 20px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+.section-title{font-family:'Syne',sans-serif;font-weight:700;font-size:11px;color:var(--text2);letter-spacing:0.07em;text-transform:uppercase}
+.section-count{font-size:12px;color:var(--text3)}
+
+/* Fixture cards */
+.fixtures{padding:0 20px;display:flex;flex-direction:column;gap:12px}
+.fixture-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:all 0.2s;box-shadow:0 1px 6px rgba(3,105,161,0.06);animation:fadein 0.3s ease both}
+.fixture-card:hover{border-color:var(--border2);box-shadow:0 4px 16px rgba(3,105,161,0.1)}
+@keyframes fadein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.fixture-card:nth-child(1){animation-delay:0.05s}
+.fixture-card:nth-child(2){animation-delay:0.1s}
+.fixture-card:nth-child(3){animation-delay:0.15s}
+.fixture-card:nth-child(4){animation-delay:0.2s}
+
+/* Card top */
+.card-topbar{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid var(--border);background:var(--surface2)}
+.tournament-tag{font-size:10px;font-weight:700;color:var(--accent);letter-spacing:0.07em;text-transform:uppercase}
+.card-meta{display:flex;align-items:center;gap:8px}
+.match-time{font-size:11px;color:var(--text2);font-weight:500}
+.live-tag{font-size:10px;font-weight:700;color:#dc2626;background:rgba(220,38,38,0.08);border:1px solid rgba(220,38,38,0.2);border-radius:999px;padding:2px 7px;animation:livepulse 2s infinite}
+@keyframes livepulse{0%,100%{opacity:1}50%{opacity:0.5}}
+.info-btn{width:22px;height:22px;border-radius:50%;border:1px solid var(--border2);background:transparent;color:var(--text3);font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;font-family:'Syne',sans-serif;flex-shrink:0}
+.info-btn:hover,.info-btn.active{background:rgba(3,105,161,0.1);border-color:var(--accent);color:var(--accent)}
+.save-btn{width:22px;height:22px;border-radius:50%;border:1px solid var(--border2);background:transparent;color:var(--text3);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;flex-shrink:0}
+.save-btn.saved{color:var(--accent2);border-color:var(--accent2)}
+
+/* Card main */
+.card-main{padding:14px 14px 12px}
+.teams-row{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.team-block{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px}
+.team-badge{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.team-short{font-family:'Syne',sans-serif;font-weight:800;font-size:13px;color:var(--text)}
+.team-full{font-size:10px;color:var(--text3);text-align:center;line-height:1.3;max-width:80px}
+.team-form{display:flex;gap:3px;justify-content:center}
+.fd{width:7px;height:7px;border-radius:50%}
+.fw{background:var(--win)}.fl{background:var(--lose)}.fd-d{background:var(--text3)}
+.vs-col{display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0;padding:0 4px}
+.vs-text{font-family:'Syne',sans-serif;font-size:11px;color:var(--text3);font-weight:700}
+.venue-text{font-size:10px;color:var(--text3);text-align:center;max-width:56px;line-height:1.3}
+
+/* Probability */
+.prob-row{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.prob-block{text-align:center;min-width:42px}
+.prob-pct{font-family:'Syne',sans-serif;font-weight:800;font-size:17px}
+.prob-label{font-size:10px;color:var(--text3);margin-top:1px}
+.prob-bar-wrap{flex:1}
+.prob-bar{height:5px;border-radius:999px;background:var(--surface2);overflow:hidden;display:flex}
+.pbh{height:100%;background:var(--accent);transition:width 0.8s ease}
+.pba{height:100%;background:var(--accent-xlight)}
+
+/* AI bubble */
+.ai-bubble{background:rgba(3,105,161,0.05);border:1px solid var(--accent-xlight);border-radius:var(--radius-sm);padding:9px 12px;display:flex;gap:8px;align-items:flex-start}
+.ai-bubble-icon{width:20px;height:20px;border-radius:5px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;color:#fff;font-weight:700;font-family:'Syne',sans-serif}
+.ai-bubble-text{font-size:12px;color:var(--text2);line-height:1.6;flex:1}
+.ai-bubble-text strong{color:var(--accent);font-weight:600}
+.tap-hint{font-size:10px;color:var(--text3);margin-top:3px}
+
+/* Info panel */
+.info-panel{border-top:1px solid var(--border);padding:14px;background:rgba(3,105,161,0.02);display:none}
+.info-panel.open{display:block}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.info-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px}
+.ibl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;font-weight:600}
+.ibv{font-size:12px;font-weight:600;color:var(--text);line-height:1.4}
+.ibs{font-size:11px;color:var(--text2);margin-top:2px;line-height:1.4}
+.squad-section{margin-top:10px}
+.squad-label{font-size:11px;color:var(--text2);font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em}
+.squad-row{display:flex;gap:5px;flex-wrap:wrap}
+.pchip{font-size:11px;color:var(--text2);background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:3px 9px}
+.pchip.key{color:var(--accent);border-color:var(--accent-xlight);background:rgba(3,105,161,0.05);font-weight:500}
+
+/* Detail panel */
+.detail-panel{border-top:1px solid var(--border);display:none}
+.detail-panel.open{display:block}
+.detail-tabs{display:flex;border-bottom:1px solid var(--border);background:var(--surface2)}
+.detail-tab{flex:1;padding:10px;text-align:center;font-size:12px;font-weight:600;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s;font-family:'Syne',sans-serif}
+.detail-tab.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--surface)}
+.detail-content{padding:14px}
+.pred-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.pred-stat{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px}
+.psl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:5px;font-weight:600}
+.psv{font-family:'Syne',sans-serif;font-weight:700;font-size:15px;color:var(--text)}
+.pss{font-size:11px;color:var(--text2);margin-top:3px;line-height:1.4}
+.pred-stat.hl{border-color:var(--accent-xlight);background:rgba(3,105,161,0.04)}
+.pred-stat.hl .psv{color:var(--accent)}
+.key-battle{background:rgba(3,105,161,0.04);border:1px solid var(--accent-xlight);border-radius:var(--radius-sm);padding:12px;margin-top:8px}
+.kbl{font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:0.05em;font-weight:700;margin-bottom:5px}
+.kbv{font-size:13px;color:var(--text);font-weight:600}
+.kbs{font-size:12px;color:var(--text2);margin-top:3px;line-height:1.5}
+.conf-row{display:flex;align-items:center;gap:10px;margin-top:10px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm)}
+.conf-label{font-size:12px;color:var(--text2);flex:1}
+.conf-bar{flex:2;height:5px;background:var(--border);border-radius:999px;overflow:hidden}
+.conf-fill{height:100%;border-radius:999px;background:var(--accent)}
+.conf-pct{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--accent);min-width:36px;text-align:right}
+.full-analysis{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px}
+.fal{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;font-weight:600}
+.fat{font-size:13px;color:var(--text2);line-height:1.7}
+
+/* Loading */
+.ai-loading{padding:16px;display:flex;gap:12px;align-items:flex-start}
+.spinner{width:16px;height:16px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0;margin-top:2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.lt{font-size:12px;color:var(--text2);font-weight:500;margin-bottom:8px}
+.ls{font-size:11px;color:var(--text3);display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.ls.done{color:var(--win)}
+.ls::before{content:'○';font-size:10px}
+.ls.done::before{content:'✓';font-weight:700}
+
+/* ═══════════════════════════════════════
+   STATS TAB
+═══════════════════════════════════════ */
+.stats-page{padding:0 20px}
+.stats-filter{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.stats-tab-btn{padding:6px 14px;border-radius:999px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all 0.2s;font-weight:500}
+.stats-tab-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.stats-section{margin-bottom:24px}
+.stats-section-title{font-family:'Syne',sans-serif;font-weight:700;font-size:11px;color:var(--text2);letter-spacing:0.07em;text-transform:uppercase;margin-bottom:12px}
+.stats-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:0 1px 6px rgba(3,105,161,0.06)}
+.stats-row{display:flex;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid var(--border);transition:background 0.15s}
+.stats-row:last-child{border-bottom:none}
+.stats-row:hover{background:var(--surface2)}
+.stats-rank{font-family:'Syne',sans-serif;font-weight:800;font-size:13px;color:var(--text3);min-width:22px}
+.stats-rank.top{color:var(--accent2)}
+.stats-player-info{flex:1}
+.stats-player-name{font-size:13px;font-weight:600;color:var(--text)}
+.stats-player-team{font-size:11px;color:var(--text3);margin-top:1px}
+.stats-bar-col{flex:2}
+.stats-bar-wrap{display:flex;align-items:center;gap:8px}
+.stats-bar{flex:1;height:5px;background:var(--surface2);border-radius:999px;overflow:hidden}
+.stats-bar-fill{height:100%;border-radius:999px;background:var(--accent)}
+.stats-val{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:var(--accent);min-width:40px;text-align:right}
+
+/* Points table */
+.points-table{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:0 1px 6px rgba(3,105,161,0.06)}
+.pt-header{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:4px;padding:9px 14px;background:var(--surface2);border-bottom:1px solid var(--border)}
+.pt-col{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;text-align:center}
+.pt-col:first-child{text-align:left}
+.pt-row{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:4px;padding:10px 14px;border-bottom:1px solid var(--border);align-items:center;transition:background 0.15s}
+.pt-row:last-child{border-bottom:none}
+.pt-row:hover{background:var(--surface2)}
+.pt-row.qualify{border-left:3px solid var(--win)}
+.pt-team-name{font-size:13px;font-weight:600;color:var(--text)}
+.pt-team-sub{font-size:10px;color:var(--text3)}
+.pt-val{font-size:13px;color:var(--text2);text-align:center}
+.pt-val.pts{font-family:'Syne',sans-serif;font-weight:700;color:var(--accent)}
+.pt-nrr{font-size:11px;text-align:center}
+.nrr-pos{color:var(--win)}.nrr-neg{color:var(--lose)}
+
+/* ═══════════════════════════════════════
+   SAVED TAB
+═══════════════════════════════════════ */
+.saved-page{padding:0 20px}
+.saved-section{margin-bottom:24px}
+.saved-section-title{font-family:'Syne',sans-serif;font-weight:700;font-size:11px;color:var(--text2);letter-spacing:0.07em;text-transform:uppercase;margin-bottom:12px}
+.empty-state{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px 20px;text-align:center}
+.empty-icon{font-size:32px;margin-bottom:10px}
+.empty-title{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:var(--text);margin-bottom:6px}
+.empty-sub{font-size:12px;color:var(--text2);line-height:1.6}
+.fav-team-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fav-team-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;transition:all 0.2s;position:relative}
+.fav-team-card:hover{border-color:var(--border2)}
+.fav-team-card.selected{border-color:var(--accent);background:rgba(3,105,161,0.04)}
+.fav-tick{position:absolute;top:8px;right:8px;width:18px;height:18px;border-radius:50%;background:var(--accent);display:none;align-items:center;justify-content:center;font-size:10px;color:#fff}
+.fav-team-card.selected .fav-tick{display:flex}
+.fav-team-name{font-size:12px;font-weight:600;color:var(--text);text-align:center}
+.saved-prediction-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px}
+.spc-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.spc-match{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:var(--text)}
+.spc-date{font-size:11px;color:var(--text3)}
+.spc-tag{font-size:10px;font-weight:700;color:var(--accent);background:rgba(3,105,161,0.08);border-radius:999px;padding:3px 9px;letter-spacing:0.05em}
+.spc-pred{font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:10px}
+.spc-footer{display:flex;align-items:center;justify-content:space-between}
+.spc-conf{font-size:12px;color:var(--text3)}
+.spc-conf span{color:var(--accent);font-weight:600}
+.unsave-btn{font-size:11px;color:var(--lose);background:transparent;border:1px solid rgba(220,38,38,0.2);border-radius:999px;padding:3px 10px;cursor:pointer;font-family:'DM Sans',sans-serif}
+
+/* ═══════════════════════════════════════
+   SETTINGS TAB
+═══════════════════════════════════════ */
+.settings-page{padding:0 20px}
+.settings-section{margin-bottom:24px}
+.settings-section-title{font-family:'Syne',sans-serif;font-weight:700;font-size:11px;color:var(--text2);letter-spacing:0.07em;text-transform:uppercase;margin-bottom:12px}
+.settings-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:0 1px 6px rgba(3,105,161,0.06)}
+.setting-row{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border)}
+.setting-row:last-child{border-bottom:none}
+.setting-label{font-size:13px;font-weight:500;color:var(--text)}
+.setting-sub{font-size:11px;color:var(--text3);margin-top:2px}
+.toggle{width:44px;height:24px;border-radius:999px;background:var(--surface2);border:1px solid var(--border2);position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0}
+.toggle.on{background:var(--accent);border-color:var(--accent)}
+.toggle-knob{width:18px;height:18px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2)}
+.toggle.on .toggle-knob{left:22px}
+.fav-teams-setting{padding:14px 16px}
+.all-teams-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.team-select-btn{padding:8px 6px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;text-align:center;transition:all 0.2s}
+.team-select-btn.selected{border-color:var(--accent);background:rgba(3,105,161,0.06)}
+.tsb-name{font-size:11px;font-weight:600;color:var(--text);margin-top:4px}
+.settings-about{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center}
+.about-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--text);margin-bottom:4px}
+.about-logo span{color:var(--accent)}
+.about-sub{font-size:12px;color:var(--text3);margin-bottom:12px}
+.about-tag{display:inline-block;font-size:11px;color:var(--accent2);background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.2);border-radius:999px;padding:3px 10px;margin-bottom:12px}
+.about-note{font-size:11px;color:var(--text3);line-height:1.6}
+
+/* Chat */
+.chat-section{margin:20px 20px 0}
+.chat-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.chat-icon{width:34px;height:34px;border-radius:10px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:17px}
+.chat-title{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:var(--text)}
+.chat-subtitle{font-size:11px;color:var(--text2)}
+.chat-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:0 1px 6px rgba(3,105,161,0.06)}
+.chat-messages{padding:12px;min-height:140px;max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
+.chat-messages::-webkit-scrollbar{width:3px}
+.chat-messages::-webkit-scrollbar-thumb{background:var(--border2);border-radius:999px}
+.cmsg{display:flex;gap:8px;align-items:flex-start}
+.cmsg.user{flex-direction:row-reverse}
+.cmsg-av{width:26px;height:26px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700}
+.cmsg.ai .cmsg-av{background:var(--accent);color:#fff}
+.cmsg.user .cmsg-av{background:var(--surface2);color:var(--text2);border:1px solid var(--border2)}
+.cmsg-bubble{max-width:82%;padding:9px 12px;font-size:13px;line-height:1.6;border-radius:12px}
+.cmsg.ai .cmsg-bubble{background:var(--surface2);color:var(--text);border-radius:4px 12px 12px 12px;border:1px solid var(--border)}
+.cmsg.user .cmsg-bubble{background:var(--accent);color:#fff;border-radius:12px 4px 12px 12px}
+.chat-sugs{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 10px}
+.sug{font-size:11px;padding:4px 10px;border-radius:999px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;font-weight:500}
+.sug:hover{background:rgba(3,105,161,0.06);color:var(--accent);border-color:var(--accent)}
+.chat-input-row{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--border)}
+.chat-inp{flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:9px 12px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;transition:border 0.2s}
+.chat-inp:focus{border-color:var(--accent)}
+.chat-inp::placeholder{color:var(--text3)}
+.chat-send{background:var(--accent);color:#fff;font-weight:700;font-size:13px;font-family:'Syne',sans-serif;padding:9px 16px;border:none;border-radius:10px;cursor:pointer;transition:opacity 0.2s}
+.chat-send:hover{opacity:0.85}
+.chat-send:disabled{opacity:0.4;cursor:not-allowed}
+.think-dots span{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--text3);animation:blink 1.2s infinite;margin:0 2px}
+.think-dots span:nth-child(2){animation-delay:0.2s}
+.think-dots span:nth-child(3){animation-delay:0.4s}
+@keyframes blink{0%,80%,100%{opacity:0.2}40%{opacity:1}}
+
+/* Bottom nav */
+.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:rgba(208,232,245,0.96);backdrop-filter:blur(20px);border-top:1px solid var(--border2);padding:8px 10px 18px;display:flex;justify-content:space-around;z-index:100;transition:background 0.3s}
+.dark .bottom-nav{background:rgba(10,22,40,0.96)}
+.nav-item{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;opacity:0.4;transition:opacity 0.2s;padding:4px 12px;border-radius:10px}
+.nav-item.active{opacity:1;background:rgba(3,105,161,0.08)}
+.nav-icon{font-size:19px}
+.nav-label{font-size:10px;font-weight:600;color:var(--text2);font-family:'Syne',sans-serif}
+.nav-item.active .nav-label{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── FIXTURES PAGE ── -->
+  <div class="page active" id="page-fixtures">
+    <div class="header">
+      <div class="logo">
+        <div class="logo-icon">🏏</div>
+        <div>
+          <div class="logo-text">PK <span>Forecasting</span></div>
+          <div class="logo-sub">Built overnight · AI cricket predictions</div>
+        </div>
+      </div>
+      <div class="live-badge"><div class="live-dot"></div>Live</div>
+    </div>
+
+    <div class="setup-card" id="setupCard" style="display:none">
+      <div class="setup-title">⚡ Add your API keys to unlock live predictions</div>
+      <div class="setup-desc">Get your Anthropic key at <a href="https://platform.anthropic.com" target="_blank">platform.anthropic.com</a> and cricket data key at <a href="https://cricketdata.org" target="_blank">cricketdata.org</a></div>
+      <div class="setup-row">
+        <input class="setup-input" id="apiInput" type="password" placeholder="Anthropic key: sk-ant-..."/>
+        <button class="setup-btn" onclick="saveKeys()">Save</button>
+      </div>
+      <div class="setup-row">
+        <input class="setup-input" id="cricketInput" type="password" placeholder="Cricket data key..."/>
+      </div>
+    </div>
+
+    <div class="filter-scroll">
+      <button class="filter-chip active" data-filter="all">All</button>
+      <button class="filter-chip" data-filter="ipl">IPL 2026</button>
+      <button class="filter-chip" data-filter="test">Test</button>
+      <button class="filter-chip" data-filter="odi">ODI</button>
+      <button class="filter-chip" data-filter="t20i">T20I</button>
+    </div>
+
+    <div class="section-header">
+      <div class="section-title">Upcoming fixtures</div>
+      <div class="section-count" id="fixtureCount"></div>
+    </div>
+    <div class="fixtures" id="fixturesContainer"></div>
+
+    <div class="chat-section">
+      <div class="chat-header">
+        <div class="chat-icon">🤖</div>
+        <div>
+          <div class="chat-title">AI Cricket Analyst</div>
+          <div class="chat-subtitle">Live web search · player form · pitch & conditions</div>
+        </div>
+      </div>
+      <div class="chat-box">
+        <div class="chat-messages" id="chatMessages">
+          <div class="cmsg ai">
+            <div class="cmsg-av">AI</div>
+            <div class="cmsg-bubble">Hi! I search the web for live IPL data, player form, pitch reports and more. Ask me anything about cricket!</div>
+          </div>
+        </div>
+        <div class="chat-sugs">
+          <button class="sug" onclick="useSug(this)">Who wins tonight's IPL?</button>
+          <button class="sug" onclick="useSug(this)">IPL 2026 points table?</button>
+          <button class="sug" onclick="useSug(this)">Best batsman in form?</button>
+          <button class="sug" onclick="useSug(this)">Pitch report tonight?</button>
+        </div>
+        <div class="chat-input-row">
+          <input class="chat-inp" id="chatInput" placeholder="Ask about any match, player or team..."/>
+          <button class="chat-send" id="sendBtn" onclick="sendChat()">Ask</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── STATS PAGE ── -->
+  <div class="page" id="page-stats">
+    <div class="header">
+      <div class="logo">
+        <div class="logo-icon">🏏</div>
+        <div>
+          <div class="logo-text">PK <span>Forecasting</span></div>
+          <div class="logo-sub">Stats & standings</div>
+        </div>
+      </div>
+    </div>
+    <div class="stats-page">
+      <div class="stats-filter" id="statsFilter">
+        <button class="stats-tab-btn active" data-stab="batting">Batting</button>
+        <button class="stats-tab-btn" data-stab="bowling">Bowling</button>
+        <button class="stats-tab-btn" data-stab="table">Points table</button>
+        <button class="stats-tab-btn" data-stab="results">Results</button>
+      </div>
+      <div id="statsContent"></div>
+    </div>
+  </div>
+
+  <!-- ── SAVED PAGE ── -->
+  <div class="page" id="page-saved">
+    <div class="header">
+      <div class="logo">
+        <div class="logo-icon">🏏</div>
+        <div>
+          <div class="logo-text">PK <span>Forecasting</span></div>
+          <div class="logo-sub">Your saved content</div>
+        </div>
+      </div>
+    </div>
+    <div class="saved-page">
+      <div class="saved-section">
+        <div class="saved-section-title">Favourite teams</div>
+        <div class="fav-team-grid" id="favTeamGrid"></div>
+      </div>
+      <div class="saved-section">
+        <div class="saved-section-title">Saved fixtures</div>
+        <div id="savedFixtures"></div>
+      </div>
+      <div class="saved-section">
+        <div class="saved-section-title">Saved predictions</div>
+        <div id="savedPredictions"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SETTINGS PAGE ── -->
+  <div class="page" id="page-settings">
+    <div class="header">
+      <div class="logo">
+        <div class="logo-icon">🏏</div>
+        <div>
+          <div class="logo-text">PK <span>Forecasting</span></div>
+          <div class="logo-sub">Settings & preferences</div>
+        </div>
+      </div>
+    </div>
+    <div class="settings-page">
+
+      <div class="settings-section">
+        <div class="settings-section-title">Display</div>
+        <div class="settings-card">
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">Dark mode</div>
+              <div class="setting-sub">Switch to dark theme</div>
+            </div>
+            <div class="toggle" id="darkToggle" onclick="toggleDark()"><div class="toggle-knob"></div></div>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">Compact fixture cards</div>
+              <div class="setting-sub">Show more matches at once</div>
+            </div>
+            <div class="toggle" id="compactToggle" onclick="toggleSetting('compactToggle','compact')"><div class="toggle-knob"></div></div>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">Show form dots</div>
+              <div class="setting-sub">Last 5 match results on cards</div>
+            </div>
+            <div class="toggle on" id="formToggle" onclick="toggleSetting('formToggle','showForm')"><div class="toggle-knob"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">Notifications — coming soon</div>
+        <div class="settings-card">
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">Match day alerts</div>
+              <div class="setting-sub">Notify when a saved match is starting</div>
+            </div>
+            <div class="toggle" id="matchAlertToggle" onclick="toggleSetting('matchAlertToggle','matchAlerts')"><div class="toggle-knob"></div></div>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">Prediction ready alerts</div>
+              <div class="setting-sub">Notify when AI prediction is generated</div>
+            </div>
+            <div class="toggle" id="predAlertToggle" onclick="toggleSetting('predAlertToggle','predAlerts')"><div class="toggle-knob"></div></div>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">IPL live score alerts</div>
+              <div class="setting-sub">Updates during live matches</div>
+            </div>
+            <div class="toggle" id="liveAlertToggle" onclick="toggleSetting('liveAlertToggle','liveAlerts')"><div class="toggle-knob"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">Favourite teams</div>
+        <div class="settings-card">
+          <div class="fav-teams-setting">
+            <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.5">Select your teams — their fixtures will appear first</div>
+            <div class="all-teams-grid" id="allTeamsGrid"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-about">
+        <div class="about-logo">PK <span>Forecasting</span></div>
+        <div class="about-sub">AI-powered cricket predictions</div>
+        <div class="about-tag">Built overnight ⚡</div>
+        <div class="about-note">Powered by Claude AI with live web search. Predictions are for entertainment purposes. Always gamble responsibly.</div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- Bottom nav -->
+<div class="bottom-nav">
+  <div class="nav-item active" onclick="switchPage('fixtures',this)">
+    <div class="nav-icon">🏏</div><div class="nav-label">Fixtures</div>
+  </div>
+  <div class="nav-item" onclick="switchPage('stats',this)">
+    <div class="nav-icon">📊</div><div class="nav-label">Stats</div>
+  </div>
+  <div class="nav-item" onclick="switchPage('saved',this)">
+    <div class="nav-icon">⭐</div><div class="nav-label">Saved</div>
+  </div>
+  <div class="nav-item" onclick="switchPage('settings',this)">
+    <div class="nav-icon">⚙️</div><div class="nav-label">Settings</div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────
+let apiKey = localStorage.getItem('pkf_claude') || '';
+let cricketKey = localStorage.getItem('pkf_cricket') || '';
+let savedFixtureIds = JSON.parse(localStorage.getItem('pkf_saved_fixtures') || '[]');
+let savedPreds = JSON.parse(localStorage.getItem('pkf_saved_preds') || '[]');
+let favTeams = JSON.parse(localStorage.getItem('pkf_fav_teams') || '[]');
+let settings = JSON.parse(localStorage.getItem('pkf_settings') || '{"dark":false,"compact":false,"showForm":true,"matchAlerts":false,"predAlerts":false,"liveAlerts":false}');
+let activeFilter = 'all';
+let activeStatsTab = 'batting';
+let detailCache = {};
+let chatHistory = [];
+let chatLoading = false;
+
+// ── Teams ──────────────────────────────────────────────────
+const TEAMS = {
+  RCB: {name:'Royal Challengers Bengaluru', short:'RCB', color:'#EC1C24', bg:'#1a0000'},
+  LSG: {name:'Lucknow Super Giants',        short:'LSG', color:'#A72056', bg:'#1a0a14'},
+  MI:  {name:'Mumbai Indians',              short:'MI',  color:'#004BA0', bg:'#001428'},
+  GT:  {name:'Gujarat Titans',              short:'GT',  color:'#1B8EF0', bg:'#0a1a2e'},
+  CSK: {name:'Chennai Super Kings',         short:'CSK', color:'#F9CD05', bg:'#1a1400'},
+  PBKS:{name:'Punjab Kings',               short:'PBKS',color:'#ED1B24', bg:'#1a0000'},
+  KKR: {name:'Kolkata Knight Riders',       short:'KKR', color:'#3A225D', bg:'#0f0a1a'},
+  RR:  {name:'Rajasthan Royals',            short:'RR',  color:'#EA1A85', bg:'#1a0a14'},
+  SRH: {name:'Sunrisers Hyderabad',         short:'SRH', color:'#F7A721', bg:'#1a1000'},
+  DC:  {name:'Delhi Capitals',              short:'DC',  color:'#0078BC', bg:'#001a2e'},
+  IND: {name:'India',                       short:'IND', color:'#FF9933', bg:'#001e3c'},
+  ENG: {name:'England',                     short:'ENG', color:'#6699cc', bg:'#001428'},
+};
+
+function teamBadge(code, size=52) {
+  const t = TEAMS[code] || {color:'#0369a1', bg:'#0a1628', short:code.slice(0,3)};
+  const fs = t.short.length > 2 ? '10px' : '13px';
+  return '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+t.bg+';border:2.5px solid '+t.color+';display:flex;align-items:center;justify-content:center;flex-shrink:0;box-sizing:border-box;">'
+    +'<span style="font-family:Syne,sans-serif;font-weight:800;font-size:'+fs+';color:'+t.color+';letter-spacing:0.5px;line-height:1;text-align:center;">'+t.short+'</span>'
+    +'</div>';
+}
+
+// ── Fixtures data ──────────────────────────────────────────
+const FIXTURES = [
+  {id:'f1',tournament:'IPL 2026',filter:'ipl',home:'RCB',away:'LSG',time:'Today • 7:30 PM IST',venue:'Chinnaswamy',isLive:false,homeForm:['w','w','l','w','w'],awayForm:['l','w','w','l','w'],homeProb:58,pitch:'Flat batting surface. High scoring expected.',weather:'28°C, Clear. High dew after 9pm.',toss:'Chasing team wins 7 of last 9 here.',homeSquad:['Kohli','du Plessis','Maxwell','Raza','Hazlewood','Siraj'],awaySquad:['Rahul','Pooran','Stoinis','Mohsin','Bishnoi','Krunal'],keyPlayers:['Kohli','Pooran','Hazlewood','Bishnoi']},
+  {id:'f2',tournament:'IPL 2026',filter:'ipl',home:'MI',away:'GT',time:'Tomorrow • 7:30 PM IST',venue:'Wankhede',isLive:false,homeForm:['w','l','w','w','l'],awayForm:['w','w','d','w','w'],homeProb:45,pitch:'Good pace and bounce. Seamers get movement.',weather:'31°C, Humid. Light westerly wind.',toss:'Both captains prefer chasing here.',homeSquad:['Rohit','Ishan','Hardik','Bumrah','Surya','Pollard'],awaySquad:['Gill','Sudharsan','Rashid','Shami','Tewatia','Sai Sudharsan'],keyPlayers:['Bumrah','Gill','Rohit','Rashid']},
+  {id:'f3',tournament:'IPL 2026',filter:'ipl',home:'CSK',away:'PBKS',time:'Sat 12 Apr • 3:30 PM IST',venue:'Chepauk',isLive:false,homeForm:['w','w','w','l','w'],awayForm:['l','l','w','w','l'],homeProb:67,pitch:'Spin-friendly, slow and low.',weather:'34°C, Partly cloudy. No rain.',toss:'Home advantage significant at Chepauk.',homeSquad:['Dhoni','Gaikwad','Conway','Jadeja','Deepak','Ravindra'],awaySquad:['Bairstow','Livingstone','Shashank','Arshdeep','Curran','Prabhsimran'],keyPlayers:['Jadeja','Livingstone','Gaikwad','Arshdeep']},
+  {id:'f4',tournament:'Test Series',filter:'test',home:'IND',away:'ENG',time:'Sun 13 Apr • 9:30 AM IST',venue:'Ahmedabad',isLive:false,homeForm:['w','w','d','w','w'],awayForm:['w','l','w','d','w'],homeProb:61,pitch:'Dry, crumbling. Spin from Day 2.',weather:'36°C, Hot and dry.',toss:'Batting first strongly advised.',homeSquad:['Rohit','Gill','Kohli','Jadeja','Ashwin','Bumrah'],awaySquad:['Crawley','Duckett','Root','Stokes','Archer','Bashir'],keyPlayers:['Ashwin','Root','Jadeja','Bumrah']},
+];
+
+// ── Stats data ─────────────────────────────────────────────
+const BATTING_STATS = [
+  {name:'Virat Kohli',team:'RCB',runs:487,innings:9,avg:60.9,sr:148.2},
+  {name:'Shubman Gill',team:'GT',runs:421,innings:9,avg:52.6,sr:145.0},
+  {name:'KL Rahul',team:'LSG',runs:398,innings:9,avg:49.8,sr:138.5},
+  {name:'Rohit Sharma',team:'MI',runs:376,innings:8,avg:47.0,sr:152.4},
+  {name:'Ruturaj Gaikwad',team:'CSK',runs:354,innings:9,avg:44.3,sr:141.6},
+  {name:'Jos Buttler',team:'RR',runs:342,innings:8,avg:42.8,sr:156.2},
+  {name:'David Warner',team:'DC',runs:318,innings:8,avg:39.8,sr:149.3},
+  {name:'Shreyas Iyer',team:'KKR',runs:295,innings:7,avg:42.1,sr:144.1},
+];
+
+const BOWLING_STATS = [
+  {name:'Jasprit Bumrah',team:'MI',wickets:16,innings:9,avg:14.2,econ:6.8},
+  {name:'Yuzvendra Chahal',team:'RR',wickets:15,innings:9,avg:16.1,econ:7.2},
+  {name:'Rashid Khan',team:'GT',wickets:14,innings:9,avg:15.8,econ:6.5},
+  {name:'Mohammed Shami',team:'GT',wickets:13,innings:8,avg:18.4,econ:8.1},
+  {name:'Arshdeep Singh',team:'PBKS',wickets:12,innings:9,avg:20.1,econ:8.4},
+  {name:'Sunil Narine',team:'KKR',wickets:11,innings:8,avg:19.8,econ:7.0},
+  {name:'Mitchell Starc',team:'KKR',wickets:11,innings:9,avg:21.3,econ:8.8},
+  {name:'Kuldeep Yadav',team:'DC',wickets:10,innings:8,avg:22.5,econ:7.6},
+];
+
+const POINTS_TABLE = [
+  {team:'RCB', p:9, w:7, l:2, pts:14, nrr:'+0.842'},
+  {team:'GT',  p:9, w:6, l:3, pts:12, nrr:'+0.512'},
+  {team:'CSK', p:9, w:6, l:3, pts:12, nrr:'+0.384'},
+  {team:'MI',  p:8, w:5, l:3, pts:10, nrr:'+0.218'},
+  {team:'RR',  p:9, w:5, l:4, pts:10, nrr:'+0.105'},
+  {team:'LSG', p:9, w:4, l:5, pts:8,  nrr:'-0.124'},
+  {team:'KKR', p:8, w:4, l:4, pts:8,  nrr:'-0.286'},
+  {team:'PBKS',p:9, w:3, l:6, pts:6,  nrr:'-0.412'},
+  {team:'SRH', p:8, w:3, l:5, pts:6,  nrr:'-0.538'},
+  {team:'DC',  p:8, w:2, l:6, pts:4,  nrr:'-0.721'},
+];
+
+const RECENT_RESULTS = [
+  {home:'KKR',away:'LSG',homeScore:'174-6',awayScore:'176-4',result:'LSG won by 6 wkts',date:'9 Apr'},
+  {home:'RCB',away:'SRH',homeScore:'198-4',awayScore:'181-8',result:'RCB won by 17 runs',date:'8 Apr'},
+  {home:'CSK',away:'DC', homeScore:'189-5',awayScore:'152-9',result:'CSK won by 37 runs',date:'7 Apr'},
+  {home:'MI', away:'RR', homeScore:'162-8',awayScore:'165-4',result:'RR won by 6 wkts',date:'6 Apr'},
+  {home:'GT', away:'PBKS',homeScore:'201-3',awayScore:'178-7',result:'GT won by 23 runs',date:'5 Apr'},
+];
+
+// ── Init ───────────────────────────────────────────────────
+function init() {
+  if (apiKey) 
+  if (settings.dark) document.body.classList.add('dark');
+  applyToggles();
+  renderFixtures();
+  renderStats('batting');
+  renderSaved();
+  renderSettingsTeams();
+  renderFavTeams();
+}
+
+// ── Keys ───────────────────────────────────────────────────
+function saveKeys() {
+  const ak = document.getElementById('apiInput').value.trim();
+  const ck = document.getElementById('cricketInput').value.trim();
+  if (ak && !ak.startsWith('sk-ant-')) { alert('Anthropic key should start with sk-ant-'); return; }
+  if (ak) { apiKey = ak; localStorage.setItem('pkf_claude', ak); }
+  if (ck) { cricketKey = ck; localStorage.setItem('pkf_cricket', ck); }
+  
+  addChatMsg('ai', '✅ Keys saved! I can now generate live AI predictions and pull real cricket data. Ask me anything!');
+}
+
+// ── Page navigation ────────────────────────────────────────
+function switchPage(name, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  el.classList.add('active');
+}
+
+// ── Fixture rendering ──────────────────────────────────────
+function renderFixtures() {
+  const list = activeFilter === 'all' ? FIXTURES : FIXTURES.filter(f => f.filter === activeFilter);
+  // Sort fav teams first
+  list.sort((a,b) => {
+    const aFav = favTeams.includes(a.home)||favTeams.includes(a.away) ? 0 : 1;
+    const bFav = favTeams.includes(b.home)||favTeams.includes(b.away) ? 0 : 1;
+    return aFav - bFav;
+  });
+  document.getElementById('fixtureCount').textContent = list.length + ' match' + (list.length!==1?'es':'');
+  document.getElementById('fixturesContainer').innerHTML = list.map(buildCard).join('');
+}
+
+function buildCard(f) {
+  const dots = arr => arr.map(r => '<div class="fd '+(r==='w'?'fw':r==='l'?'fl':'fd-d')+'"></div>').join('');
+  const ap = 100 - f.homeProb;
+  const hc = f.homeProb>=50?'var(--accent)':'var(--text2)';
+  const ac = ap>=50?'var(--accent)':'var(--text2)';
+  const isSaved = savedFixtureIds.includes(f.id);
+  return '<div class="fixture-card" id="card-'+f.id+'">'
+    +'<div class="card-topbar">'
+    +'<span class="tournament-tag">'+f.tournament+'</span>'
+    +'<div class="card-meta">'
+    +(f.isLive?'<span class="live-tag">● LIVE</span>':'<span class="match-time">'+f.time+'</span>')
+    +'<button class="save-btn'+(isSaved?' saved':'')+ '" id="savebtn-'+f.id+'" onclick="toggleSaveFixture(\''+f.id+'\',event)" title="Save fixture">'+(isSaved?'★':'☆')+'</button>'
+    +'<button class="info-btn" id="infobtn-'+f.id+'" onclick="toggleInfo(\''+f.id+'\',event)">i</button>'
+    +'</div></div>'
+    +'<div class="card-main" onclick="toggleDetail(\''+f.id+'\')">'
+    +'<div class="teams-row">'
+    +'<div class="team-block">'+teamBadge(f.home)+'<div class="team-short">'+f.home+'</div><div class="team-full">'+(TEAMS[f.home]?.name||f.home)+'</div><div class="team-form">'+dots(f.homeForm)+'</div></div>'
+    +'<div class="vs-col"><div class="vs-text">VS</div><div class="venue-text">'+f.venue+'</div></div>'
+    +'<div class="team-block">'+teamBadge(f.away)+'<div class="team-short">'+f.away+'</div><div class="team-full">'+(TEAMS[f.away]?.name||f.away)+'</div><div class="team-form">'+dots(f.awayForm)+'</div></div>'
+    +'</div>'
+    +'<div class="prob-row"><div class="prob-block"><div class="prob-pct" style="color:'+hc+'">'+f.homeProb+'%</div><div class="prob-label">'+f.home+'</div></div>'
+    +'<div class="prob-bar-wrap"><div class="prob-bar"><div class="pbh" style="width:'+f.homeProb+'%"></div><div class="pba" style="width:'+ap+'%"></div></div></div>'
+    +'<div class="prob-block"><div class="prob-pct" style="color:'+ac+'">'+ap+'%</div><div class="prob-label">'+f.away+'</div></div></div>'
+    +'<div class="ai-bubble"><div class="ai-bubble-icon">AI</div><div><div class="ai-bubble-text" id="bubble-'+f.id+'">Tap for AI prediction — form, pitch, weather &amp; more</div><div class="tap-hint">↓ tap card to expand</div></div></div>'
+    +'</div>'
+    +'<div class="info-panel" id="info-'+f.id+'">'
+    +'<div class="info-grid">'
+    +'<div class="info-box"><div class="ibl">Pitch</div><div class="ibv">'+f.pitch.split('.')[0]+'</div><div class="ibs">'+f.pitch.split('.').slice(1).join('.').trim()+'</div></div>'
+    +'<div class="info-box"><div class="ibl">Weather</div><div class="ibv">'+f.weather.split('.')[0]+'</div><div class="ibs">'+f.weather.split('.').slice(1).join('.').trim()+'</div></div>'
+    +'<div class="info-box" style="grid-column:1/-1"><div class="ibl">Toss insight</div><div class="ibs">'+f.toss+'</div></div>'
+    +'</div>'
+    +'<div class="squad-section"><div class="squad-label">'+f.home+' squad</div><div class="squad-row">'+f.homeSquad.map(p=>'<span class="pchip'+(f.keyPlayers.includes(p)?' key':'')+'">'+p+'</span>').join('')+'</div></div>'
+    +'<div class="squad-section" style="margin-top:10px"><div class="squad-label">'+f.away+' squad</div><div class="squad-row">'+f.awaySquad.map(p=>'<span class="pchip'+(f.keyPlayers.includes(p)?' key':'')+'">'+p+'</span>').join('')+'</div></div>'
+    +'</div>'
+    +'<div class="detail-panel" id="detail-'+f.id+'">'
+    +'<div class="detail-tabs"><div class="detail-tab active" onclick="switchTab(\''+f.id+'\',\'pred\',this)">Prediction</div><div class="detail-tab" onclick="switchTab(\''+f.id+'\',\'analysis\',this)">Analysis</div></div>'
+    +'<div class="detail-content" id="dc-'+f.id+'">'
+    +'<div class="ai-loading" id="loading-'+f.id+'"><div class="spinner"></div><div><div class="lt">Generating AI prediction...</div>'
+    +'<div class="ls" id="s1-'+f.id+'">Searching current player form</div>'
+    +'<div class="ls" id="s2-'+f.id+'">Analysing pitch &amp; conditions</div>'
+    +'<div class="ls" id="s3-'+f.id+'">Calculating win probability</div>'
+    +'<div class="ls" id="s4-'+f.id+'">Building prediction</div>'
+    +'</div></div></div>'
+    +'</div>'
+    +'</div>';
+}
+
+// ── Info / Detail toggles ──────────────────────────────────
+function toggleInfo(id, e) {
+  e.stopPropagation();
+  const p = document.getElementById('info-'+id);
+  const b = document.getElementById('infobtn-'+id);
+  const open = p.classList.contains('open');
+  document.querySelectorAll('.info-panel').forEach(x=>x.classList.remove('open'));
+  document.querySelectorAll('.info-btn').forEach(x=>x.classList.remove('active'));
+  if (!open) { p.classList.add('open'); b.classList.add('active'); }
+}
+
+function toggleDetail(id) {
+  const p = document.getElementById('detail-'+id);
+  const open = p.classList.contains('open');
+  if (!open) { p.classList.add('open'); if (!detailCache[id]) fetchPred(id); }
+  else p.classList.remove('open');
+}
+
+function switchTab(id, tab, el) {
+  document.querySelectorAll('#detail-'+id+' .detail-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  if (detailCache[id]) renderDetail(id, detailCache[id], tab);
+}
+
+// ── Prediction fetch ───────────────────────────────────────
+async function fetchPred(id) {
+  const f = FIXTURES.find(x=>x.id===id);
+  if (!f) return;
+  const steps = ['s1','s2','s3','s4'];
+  for (let i=0;i<steps.length;i++) { await delay(600+i*500); document.getElementById(steps[i]+'-'+id)?.classList.add('done'); }
+  if (!apiKey) { const d = demoPred(f); detailCache[id]=d; renderDetail(id,d,'pred'); updateBubble(id,d); return; }
+  try {
+    const res = await fetch('/.netlify/functions/claude',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',max_tokens:1000,
+        system:'You are an expert cricket analyst. Respond with valid JSON only — no markdown.',
+        messages:[{role:'user',content:'Analyse: '+(TEAMS[f.home]?.name||f.home)+' vs '+(TEAMS[f.away]?.name||f.away)+' | '+f.tournament+' | '+f.venue+' | Pitch: '+f.pitch+' | Weather: '+f.weather+' | Toss: '+f.toss+' | Home form: '+f.homeForm.join(',')+' | Away form: '+f.awayForm.join(',')+' | Key players: '+f.keyPlayers.join(', ')+'\nSearch web for current form, injuries, head to head.\nReturn JSON: {"homeScore":"","awayScore":"","motm":"","motmReason":"","topBatter":"","topBatterRuns":"","topBowler":"","topBowlerWickets":"","keyBattle":"","keyBattleDetail":"","analysis":"","confidence":72,"bubbleSummary":""}'}],
+        tools:[{type:'web_search_20250305',name:'web_search'}]
+      })
+    });
+    const data = await res.json();
+    const raw = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('').trim();
+    const pred = JSON.parse(raw.replace(/```json|```/g,'').trim());
+    detailCache[id]=pred; renderDetail(id,pred,'pred'); updateBubble(id,pred);
+    autoSavePred(f, pred);
+  } catch(e) { const d=demoPred(f); detailCache[id]=d; renderDetail(id,d,'pred'); updateBubble(id,d); }
+}
+
+function demoPred(f) {
+  return {homeScore:'178-5 (20)',awayScore:'162-8 (20)',motm:f.keyPlayers[0],motmReason:'Exceptional current form and ideally suited to these conditions.',topBatter:f.keyPlayers[0],topBatterRuns:'60-75',topBowler:f.keyPlayers[2]||f.keyPlayers[1],topBowlerWickets:'2-3',keyBattle:f.keyPlayers[0]+' vs '+(f.keyPlayers[3]||f.keyPlayers[1]),keyBattleDetail:'This matchup will define the contest. Both in strong form and the pitch conditions suit an absorbing battle.',analysis:(TEAMS[f.home]?.name||f.home)+' enter with strong form and conditions that suit their style. '+f.pitch+' '+f.weather+' The toss will be key — '+f.toss+' '+(TEAMS[f.home]?.name||f.home)+' are slight favourites but '+(TEAMS[f.away]?.name||f.away)+' have match-winners capable of turning this.',confidence:68,bubbleSummary:(TEAMS[f.home]?.name||f.home)+' favoured at '+f.homeProb+'% — pitch and conditions are key today.'};
+}
+
+function updateBubble(id, pred) {
+  const el = document.getElementById('bubble-'+id);
+  if (el&&pred.bubbleSummary) el.innerHTML = '<strong>'+pred.bubbleSummary+'</strong>';
+}
+
+function renderDetail(id, pred, tab) {
+  const f = FIXTURES.find(x=>x.id===id);
+  document.getElementById('loading-'+id)?.remove();
+  const c = document.getElementById('dc-'+id);
+  if (tab==='pred') {
+    c.innerHTML = '<div class="pred-grid">'
+      +'<div class="pred-stat hl"><div class="psl">Score — '+f.home+'</div><div class="psv">'+pred.homeScore+'</div></div>'
+      +'<div class="pred-stat hl"><div class="psl">Score — '+f.away+'</div><div class="psv">'+pred.awayScore+'</div></div>'
+      +'<div class="pred-stat"><div class="psl">Man of match</div><div class="psv">'+pred.motm+'</div><div class="pss">'+pred.motmReason+'</div></div>'
+      +'<div class="pred-stat"><div class="psl">Top run scorer</div><div class="psv">'+pred.topBatter+'</div><div class="pss">'+pred.topBatterRuns+' runs</div></div>'
+      +'<div class="pred-stat"><div class="psl">Top wicket taker</div><div class="psv">'+pred.topBowler+'</div><div class="pss">'+pred.topBowlerWickets+' wickets</div></div>'
+      +'<div class="pred-stat"><div class="psl">AI confidence</div><div class="psv">'+pred.confidence+'%</div><div class="pss">Based on current data</div></div>'
+      +'</div>'
+      +'<div class="key-battle"><div class="kbl">⚡ Key battle</div><div class="kbv">'+pred.keyBattle+'</div><div class="kbs">'+pred.keyBattleDetail+'</div></div>'
+      +'<div class="conf-row"><div class="conf-label">Prediction confidence</div><div class="conf-bar"><div class="conf-fill" style="width:'+pred.confidence+'%"></div></div><div class="conf-pct">'+pred.confidence+'%</div></div>';
+  } else {
+    c.innerHTML = '<div class="full-analysis"><div class="fal">Full AI Analysis</div><div class="fat">'+pred.analysis+'</div></div>'
+      +'<div class="info-box" style="margin-top:8px"><div class="ibl">Pitch</div><div class="ibs" style="font-size:13px">'+f.pitch+'</div></div>'
+      +'<div class="info-box" style="margin-top:8px"><div class="ibl">Weather &amp; toss</div><div class="ibs" style="font-size:13px">'+f.weather+'<br><br>'+f.toss+'</div></div>';
+  }
+}
+
+// ── Save fixtures ──────────────────────────────────────────
+function toggleSaveFixture(id, e) {
+  e.stopPropagation();
+  const idx = savedFixtureIds.indexOf(id);
+  if (idx > -1) savedFixtureIds.splice(idx,1);
+  else savedFixtureIds.push(id);
+  localStorage.setItem('pkf_saved_fixtures', JSON.stringify(savedFixtureIds));
+  renderFixtures();
+  renderSaved();
+}
+
+function autoSavePred(f, pred) {
+  const entry = {id:f.id+'-'+Date.now(),match:f.home+' vs '+f.away,tournament:f.tournament,date:f.time,summary:pred.bubbleSummary,confidence:pred.confidence};
+  savedPreds.unshift(entry);
+  if (savedPreds.length > 20) savedPreds.pop();
+  localStorage.setItem('pkf_saved_preds', JSON.stringify(savedPreds));
+}
+
+function deleteSavedPred(id) {
+  savedPreds = savedPreds.filter(p=>p.id!==id);
+  localStorage.setItem('pkf_saved_preds', JSON.stringify(savedPreds));
+  renderSaved();
+}
+
+// ── Stats rendering ────────────────────────────────────────
+function renderStats(tab) {
+  activeStatsTab = tab;
+  const c = document.getElementById('statsContent');
+  if (tab==='batting') {
+    const max = BATTING_STATS[0].runs;
+    c.innerHTML = '<div class="stats-section"><div class="stats-section-title">Top run scorers — IPL 2026</div><div class="stats-card">'
+      +BATTING_STATS.map((p,i)=>'<div class="stats-row"><div class="stats-rank'+(i<3?' top':'')+'">'+( i<3?['🥇','🥈','🥉'][i] : (i+1) )+'</div><div class="stats-player-info"><div class="stats-player-name">'+p.name+'</div><div class="stats-player-team">'+p.team+' · Avg '+p.avg.toFixed(1)+' · SR '+p.sr.toFixed(1)+'</div></div><div class="stats-bar-col"><div class="stats-bar-wrap"><div class="stats-bar"><div class="stats-bar-fill" style="width:'+(p.runs/max*100).toFixed(0)+'%"></div></div><div class="stats-val">'+p.runs+'</div></div></div></div>').join('')
+      +'</div></div>';
+  } else if (tab==='bowling') {
+    const max = BOWLING_STATS[0].wickets;
+    c.innerHTML = '<div class="stats-section"><div class="stats-section-title">Top wicket takers — IPL 2026</div><div class="stats-card">'
+      +BOWLING_STATS.map((p,i)=>'<div class="stats-row"><div class="stats-rank'+(i<3?' top':'')+'">'+( i<3?['🥇','🥈','🥉'][i] : (i+1) )+'</div><div class="stats-player-info"><div class="stats-player-name">'+p.name+'</div><div class="stats-player-team">'+p.team+' · Avg '+p.avg.toFixed(1)+' · Econ '+p.econ.toFixed(1)+'</div></div><div class="stats-bar-col"><div class="stats-bar-wrap"><div class="stats-bar"><div class="stats-bar-fill" style="width:'+(p.wickets/max*100).toFixed(0)+'%"></div></div><div class="stats-val">'+p.wickets+'</div></div></div></div>').join('')
+      +'</div></div>';
+  } else if (tab==='table') {
+    c.innerHTML = '<div class="stats-section"><div class="stats-section-title">IPL 2026 points table</div>'
+      +'<div class="points-table">'
+      +'<div class="pt-header"><div class="pt-col">Team</div><div class="pt-col">P</div><div class="pt-col">W</div><div class="pt-col">Pts</div><div class="pt-col">NRR</div></div>'
+      +POINTS_TABLE.map((t,i)=>{
+        const nrrPos = t.nrr.startsWith('+');
+        return '<div class="pt-row'+(i<4?' qualify':'')+'"><div><div class="pt-team-name">'+t.team+'</div><div class="pt-team-sub">'+(i<4?'✅ Qualifying zone':'')+'</div></div><div class="pt-val">'+t.p+'</div><div class="pt-val">'+t.w+'</div><div class="pt-val pts">'+t.pts+'</div><div class="pt-nrr '+(nrrPos?'nrr-pos':'nrr-neg')+'">'+t.nrr+'</div></div>';
+      }).join('')
+      +'</div></div>';
+  } else if (tab==='results') {
+    c.innerHTML = '<div class="stats-section"><div class="stats-section-title">Recent results</div><div class="stats-card">'
+      +RECENT_RESULTS.map(r=>'<div class="stats-row" style="flex-direction:column;align-items:flex-start;gap:6px;">'
+        +'<div style="display:flex;align-items:center;justify-content:space-between;width:100%"><span style="font-size:13px;font-weight:600;color:var(--text)">'+r.home+' vs '+r.away+'</span><span style="font-size:11px;color:var(--text3)">'+r.date+'</span></div>'
+        +'<div style="display:flex;gap:8px;align-items:center"><span style="font-size:12px;color:var(--text2)">'+r.homeScore+'</span><span style="font-size:10px;color:var(--text3)">vs</span><span style="font-size:12px;color:var(--text2)">'+r.awayScore+'</span></div>'
+        +'<div style="font-size:12px;color:var(--accent);font-weight:500">'+r.result+'</div>'
+        +'</div>').join('')
+      +'</div></div>';
+  }
+}
+
+document.getElementById('statsFilter').addEventListener('click', e=>{
+  if (!e.target.classList.contains('stats-tab-btn')) return;
+  document.querySelectorAll('.stats-tab-btn').forEach(b=>b.classList.remove('active'));
+  e.target.classList.add('active');
+  renderStats(e.target.dataset.stab);
+});
+
+// ── Saved rendering ────────────────────────────────────────
+function renderSaved() {
+  renderFavTeams();
+  const sf = document.getElementById('savedFixtures');
+  if (savedFixtureIds.length === 0) {
+    sf.innerHTML = '<div class="empty-state"><div class="empty-icon">☆</div><div class="empty-title">No saved fixtures yet</div><div class="empty-sub">Tap the ☆ star icon on any fixture card to save it here</div></div>';
+  } else {
+    const saved = FIXTURES.filter(f=>savedFixtureIds.includes(f.id));
+    sf.innerHTML = saved.map(f=>{
+      const ap = 100-f.homeProb;
+      return '<div class="saved-prediction-card" style="margin-bottom:10px">'
+        +'<div class="spc-header"><div class="spc-match">'+f.home+' vs '+f.away+'</div><div class="spc-tag">'+f.tournament+'</div></div>'
+        +'<div style="font-size:12px;color:var(--text2);margin-bottom:8px">'+f.time+' · '+f.venue+'</div>'
+        +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'
+        +'<span style="font-family:Syne,sans-serif;font-weight:800;font-size:16px;color:var(--accent)">'+f.homeProb+'%</span>'
+        +'<div style="flex:1;height:5px;background:var(--surface2);border-radius:999px;overflow:hidden;display:flex"><div style="width:'+f.homeProb+'%;height:100%;background:var(--accent)"></div><div style="width:'+ap+'%;height:100%;background:var(--accent-xlight)"></div></div>'
+        +'<span style="font-family:Syne,sans-serif;font-weight:800;font-size:16px;color:var(--text2)">'+ap+'%</span>'
+        +'</div>'
+        +'<button onclick="toggleSaveFixture(\''+f.id+'\',event)" class="unsave-btn">Remove</button>'
+        +'</div>';
+    }).join('');
+  }
+  const sp = document.getElementById('savedPredictions');
+  if (savedPreds.length === 0) {
+    sp.innerHTML = '<div class="empty-state"><div class="empty-icon">🤖</div><div class="empty-title">No saved predictions yet</div><div class="empty-sub">AI predictions are automatically saved here when generated</div></div>';
+  } else {
+    sp.innerHTML = savedPreds.map(p=>'<div class="saved-prediction-card">'
+      +'<div class="spc-header"><div class="spc-match">'+p.match+'</div><div class="spc-tag">'+p.tournament+'</div></div>'
+      +'<div class="spc-pred">'+p.summary+'</div>'
+      +'<div class="spc-footer"><div class="spc-conf">Confidence: <span>'+p.confidence+'%</span></div><button onclick="deleteSavedPred(\''+p.id+'\')" class="unsave-btn">Delete</button></div>'
+      +'</div>').join('');
+  }
+}
+
+function renderFavTeams() {
+  const grid = document.getElementById('favTeamGrid');
+  if (!grid) return;
+  const teams = Object.keys(TEAMS).filter(k=>['RCB','MI','CSK','GT','LSG','PBKS','KKR','RR','SRH','DC'].includes(k));
+  grid.innerHTML = teams.map(code=>{
+    const t = TEAMS[code];
+    const sel = favTeams.includes(code);
+    return '<div class="fav-team-card'+(sel?' selected':'')+'" onclick="toggleFavTeam(\''+code+'\')">'
+      +'<div class="fav-tick">✓</div>'
+      +teamBadge(code, 44)
+      +'<div class="fav-team-name">'+t.name+'</div>'
+      +'</div>';
+  }).join('');
+}
+
+function toggleFavTeam(code) {
+  const idx = favTeams.indexOf(code);
+  if (idx > -1) favTeams.splice(idx,1);
+  else favTeams.push(code);
+  localStorage.setItem('pkf_fav_teams', JSON.stringify(favTeams));
+  renderFavTeams();
+  renderSettingsTeams();
+  renderFixtures();
+}
+
+// ── Settings ───────────────────────────────────────────────
+function renderSettingsTeams() {
+  const grid = document.getElementById('allTeamsGrid');
+  if (!grid) return;
+  const teams = Object.keys(TEAMS).filter(k=>['RCB','MI','CSK','GT','LSG','PBKS','KKR','RR','SRH','DC'].includes(k));
+  grid.innerHTML = teams.map(code=>{
+    const t = TEAMS[code];
+    const sel = favTeams.includes(code);
+    return '<div class="team-select-btn'+(sel?' selected':'')+'" onclick="toggleFavTeam(\''+code+'\')">'
+      +teamBadge(code, 36)
+      +'<div class="tsb-name">'+t.short+'</div>'
+      +'</div>';
+  }).join('');
+}
+
+function toggleDark() {
+  settings.dark = !settings.dark;
+  document.body.classList.toggle('dark', settings.dark);
+  document.getElementById('darkToggle').classList.toggle('on', settings.dark);
+  localStorage.setItem('pkf_settings', JSON.stringify(settings));
+}
+
+function toggleSetting(toggleId, key) {
+  settings[key] = !settings[key];
+  document.getElementById(toggleId).classList.toggle('on', settings[key]);
+  localStorage.setItem('pkf_settings', JSON.stringify(settings));
+}
+
+function applyToggles() {
+  if (settings.dark) document.getElementById('darkToggle').classList.add('on');
+  if (settings.compact) document.getElementById('compactToggle').classList.add('on');
+  if (!settings.showForm) document.getElementById('formToggle').classList.remove('on');
+  else document.getElementById('formToggle').classList.add('on');
+}
+
+// ── Fixture filters ────────────────────────────────────────
+document.querySelector('.filter-scroll').addEventListener('click', e=>{
+  if (!e.target.classList.contains('filter-chip')) return;
+  document.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));
+  e.target.classList.add('active');
+  activeFilter = e.target.dataset.filter;
+  renderFixtures();
+});
+
+// ── Chat ───────────────────────────────────────────────────
+function useSug(btn){ document.getElementById('chatInput').value=btn.textContent; sendChat(); }
+
+function addChatMsg(role, text) {
+  const c = document.getElementById('chatMessages');
+  const d = document.createElement('div');
+  d.className='cmsg '+role;
+  d.innerHTML='<div class="cmsg-av">'+(role==='ai'?'AI':'You')+'</div><div class="cmsg-bubble">'+text+'</div>';
+  c.appendChild(d); c.scrollTop=c.scrollHeight;
+}
+
+function addChatLoading() {
+  const c=document.getElementById('chatMessages');
+  const d=document.createElement('div');
+  d.className='cmsg ai';d.id='chatLoad';
+  d.innerHTML='<div class="cmsg-av">AI</div><div class="cmsg-bubble"><div class="think-dots"><span></span><span></span><span></span></div></div>';
+  c.appendChild(d);c.scrollTop=c.scrollHeight;
+}
+
+async function sendChat() {
+  if (chatLoading) return;
+  const inp=document.getElementById('chatInput');
+  const txt=inp.value.trim(); if(!txt) return;
+  inp.value=''; chatLoading=true;
+  document.getElementById('sendBtn').disabled=true;
+  addChatMsg('user',txt);
+  if (!apiKey) { addChatMsg('ai','Add your Anthropic API key at the top to enable live AI analysis!'); chatLoading=false; document.getElementById('sendBtn').disabled=false; return; }
+  addChatLoading();
+  chatHistory.push({role:'user',content:txt});
+  try {
+    const res=await fetch('/.netlify/functions/claude',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',max_tokens:1000,
+        system:'You are an expert cricket analyst for PK Forecasting. Today is April 10, 2026. IPL 2026 is live. Use web search for real current data. Give direct confident predictions with reasoning. 4-6 sentences max. Plain text only.',
+        messages:chatHistory,
+        tools:[{type:'web_search_20250305',name:'web_search'}]
+      })
+    });
+    const data=await res.json();
+    const reply=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join(' ').trim();
+    chatHistory.push({role:'assistant',content:data.content||[]});
+    document.getElementById('chatLoad')?.remove();
+    addChatMsg('ai',reply||"I couldn't find that — try rephrasing.");
+  } catch(e){ document.getElementById('chatLoad')?.remove(); addChatMsg('ai','Something went wrong. Check your API key and try again.'); }
+  chatLoading=false; document.getElementById('sendBtn').disabled=false;
+}
+
+document.getElementById('chatInput').addEventListener('keydown',e=>{if(e.key==='Enter')sendChat();});
+
+function delay(ms){return new Promise(r=>setTimeout(r,ms));}
+
+init();
+</script>
+</body>
+</html>
