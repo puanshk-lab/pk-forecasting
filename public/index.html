@@ -587,12 +587,99 @@ function teamBadge(code, size=52) {
 }
 
 // ── Fixtures data ──────────────────────────────────────────
-const FIXTURES = [
-  {id:'f1',tournament:'IPL 2026',filter:'ipl',home:'RCB',away:'LSG',time:'Today • 7:30 PM IST',venue:'Chinnaswamy',isLive:false,homeForm:['w','w','l','w','w'],awayForm:['l','w','w','l','w'],homeProb:58,pitch:'Flat batting surface. High scoring expected.',weather:'28°C, Clear. High dew after 9pm.',toss:'Chasing team wins 7 of last 9 here.',homeSquad:['Kohli','du Plessis','Maxwell','Raza','Hazlewood','Siraj'],awaySquad:['Rahul','Pooran','Stoinis','Mohsin','Bishnoi','Krunal'],keyPlayers:['Kohli','Pooran','Hazlewood','Bishnoi']},
-  {id:'f2',tournament:'IPL 2026',filter:'ipl',home:'MI',away:'GT',time:'Tomorrow • 7:30 PM IST',venue:'Wankhede',isLive:false,homeForm:['w','l','w','w','l'],awayForm:['w','w','d','w','w'],homeProb:45,pitch:'Good pace and bounce. Seamers get movement.',weather:'31°C, Humid. Light westerly wind.',toss:'Both captains prefer chasing here.',homeSquad:['Rohit','Ishan','Hardik','Bumrah','Surya','Pollard'],awaySquad:['Gill','Sudharsan','Rashid','Shami','Tewatia','Sai Sudharsan'],keyPlayers:['Bumrah','Gill','Rohit','Rashid']},
-  {id:'f3',tournament:'IPL 2026',filter:'ipl',home:'CSK',away:'PBKS',time:'Sat 12 Apr • 3:30 PM IST',venue:'Chepauk',isLive:false,homeForm:['w','w','w','l','w'],awayForm:['l','l','w','w','l'],homeProb:67,pitch:'Spin-friendly, slow and low.',weather:'34°C, Partly cloudy. No rain.',toss:'Home advantage significant at Chepauk.',homeSquad:['Dhoni','Gaikwad','Conway','Jadeja','Deepak','Ravindra'],awaySquad:['Bairstow','Livingstone','Shashank','Arshdeep','Curran','Prabhsimran'],keyPlayers:['Jadeja','Livingstone','Gaikwad','Arshdeep']},
-  {id:'f4',tournament:'Test Series',filter:'test',home:'IND',away:'ENG',time:'Sun 13 Apr • 9:30 AM IST',venue:'Ahmedabad',isLive:false,homeForm:['w','w','d','w','w'],awayForm:['w','l','w','d','w'],homeProb:61,pitch:'Dry, crumbling. Spin from Day 2.',weather:'36°C, Hot and dry.',toss:'Batting first strongly advised.',homeSquad:['Rohit','Gill','Kohli','Jadeja','Ashwin','Bumrah'],awaySquad:['Crawley','Duckett','Root','Stokes','Archer','Bashir'],keyPlayers:['Ashwin','Root','Jadeja','Bumrah']},
-];
+let FIXTURES = [];
+let fixturesLoaded = false;
+
+// Map CricketData team names to our short codes
+function guessTeamCode(name) {
+  if (!name) return 'TBC';
+  const n = name.toUpperCase();
+  if (n.includes('ROYAL') || n.includes('RCB') || n.includes('BANGALORE')) return 'RCB';
+  if (n.includes('MUMBAI') || n.includes(' MI ') || n===('MI')) return 'MI';
+  if (n.includes('CHENNAI') || n.includes('CSK')) return 'CSK';
+  if (n.includes('GUJARAT') || n.includes('TITANS') || n.includes('GT')) return 'GT';
+  if (n.includes('LUCKNOW') || n.includes('LSG')) return 'LSG';
+  if (n.includes('PUNJAB') || n.includes('PBKS') || n.includes('KINGS')) return 'PBKS';
+  if (n.includes('KOLKATA') || n.includes('KKR')) return 'KKR';
+  if (n.includes('RAJASTHAN') || n.includes('ROYALS') || n.includes(' RR')) return 'RR';
+  if (n.includes('SUNRISERS') || n.includes('HYDERABAD') || n.includes('SRH')) return 'SRH';
+  if (n.includes('DELHI') || n.includes(' DC')) return 'DC';
+  if (n.includes('INDIA') || n==='IND') return 'IND';
+  if (n.includes('ENGLAND') || n==='ENG') return 'ENG';
+  if (n.includes('AUSTRALIA') || n==='AUS') return 'AUS';
+  if (n.includes('PAKISTAN') || n==='PAK') return 'PAK';
+  if (n.includes('NEW ZEALAND') || n==='NZ') return 'NZ';
+  if (n.includes('SOUTH AFRICA') || n==='SA') return 'SA';
+  if (n.includes('SRI LANKA') || n==='SL') return 'SL';
+  if (n.includes('WEST INDIES') || n==='WI') return 'WI';
+  return name.slice(0,3).toUpperCase();
+}
+
+function getMatchType(match) {
+  const name = (match.name||'').toLowerCase();
+  const type = (match.matchType||'').toLowerCase();
+  if (name.includes('ipl') || name.includes('indian premier')) return {label:'IPL 2026', filter:'ipl'};
+  if (type==='test') return {label:'Test Series', filter:'test'};
+  if (type==='odi') return {label:'ODI Series', filter:'odi'};
+  if (type==='t20' || type==='t20i') return {label:'T20 International', filter:'t20i'};
+  return {label:'Cricket', filter:'all'};
+}
+
+async function loadFixtures() {
+  document.getElementById('fixtureCount').textContent = 'Loading...';
+  document.getElementById('fixturesContainer').innerHTML = '<div style="padding:20px;text-align:center;color:var(--text2);font-size:13px;">Fetching live fixtures...</div>';
+  try {
+    const res = await fetch('/.netlify/functions/cricket?path=currentMatches');
+    const data = await res.json();
+    if (data.data && data.data.length > 0) {
+      FIXTURES = data.data.filter(m => m.teams && m.teams.length >= 2).map((m, i) => {
+        const home = guessTeamCode(m.teams[0]);
+        const away = guessTeamCode(m.teams[1]);
+        const type = getMatchType(m);
+        const isLive = m.matchStarted && !m.matchEnded;
+        const dateObj = m.date ? new Date(m.date) : null;
+        const timeStr = dateObj ? dateObj.toLocaleDateString('en-IN', {weekday:'short', day:'numeric', month:'short'}) + ' • ' + dateObj.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'}) + ' IST' : 'Date TBC';
+        return {
+          id: m.id || ('f'+i),
+          tournament: type.label,
+          filter: type.filter,
+          home: home,
+          away: away,
+          homeFull: m.teams[0],
+          awayFull: m.teams[1],
+          time: isLive ? 'LIVE NOW' : timeStr,
+          venue: m.venue || 'Venue TBC',
+          isLive: isLive,
+          homeForm: ['w','w','l','w','w'],
+          awayForm: ['l','w','w','l','w'],
+          homeProb: 50,
+          pitch: 'Pitch report coming soon.',
+          weather: 'Weather data coming soon.',
+          toss: 'Toss information coming soon.',
+          homeSquad: [],
+          awaySquad: [],
+          keyPlayers: []
+        };
+      });
+      fixturesLoaded = true;
+      renderFixtures();
+    } else {
+      useFallbackFixtures();
+    }
+  } catch(e) {
+    useFallbackFixtures();
+  }
+}
+
+function useFallbackFixtures() {
+  FIXTURES = [
+    {id:'f1',tournament:'IPL 2026',filter:'ipl',home:'RCB',away:'LSG',time:'Today • 7:30 PM IST',venue:'Chinnaswamy',isLive:false,homeForm:['w','w','l','w','w'],awayForm:['l','w','w','l','w'],homeProb:58,pitch:'Flat batting surface. High scoring expected.',weather:'28°C, Clear. High dew after 9pm.',toss:'Chasing team wins 7 of last 9 here.',homeSquad:['Kohli','du Plessis','Maxwell','Raza','Hazlewood','Siraj'],awaySquad:['Rahul','Pooran','Stoinis','Mohsin','Bishnoi','Krunal'],keyPlayers:['Kohli','Pooran','Hazlewood','Bishnoi']},
+    {id:'f2',tournament:'IPL 2026',filter:'ipl',home:'MI',away:'GT',time:'Tomorrow • 7:30 PM IST',venue:'Wankhede',isLive:false,homeForm:['w','l','w','w','l'],awayForm:['w','w','d','w','w'],homeProb:45,pitch:'Good pace and bounce. Seamers get movement.',weather:'31°C, Humid. Light westerly wind.',toss:'Both captains prefer chasing here.',homeSquad:['Rohit','Ishan','Hardik','Bumrah','Surya','Pollard'],awaySquad:['Gill','Sudharsan','Rashid','Shami','Tewatia','Sai Sudharsan'],keyPlayers:['Bumrah','Gill','Rohit','Rashid']},
+    {id:'f3',tournament:'IPL 2026',filter:'ipl',home:'CSK',away:'PBKS',time:'Sat 12 Apr • 3:30 PM IST',venue:'Chepauk',isLive:false,homeForm:['w','w','w','l','w'],awayForm:['l','l','w','w','l'],homeProb:67,pitch:'Spin-friendly, slow and low.',weather:'34°C, Partly cloudy. No rain.',toss:'Home advantage significant at Chepauk.',homeSquad:['Dhoni','Gaikwad','Conway','Jadeja','Deepak','Ravindra'],awaySquad:['Bairstow','Livingstone','Shashank','Arshdeep','Curran','Prabhsimran'],keyPlayers:['Jadeja','Livingstone','Gaikwad','Arshdeep']},
+    {id:'f4',tournament:'Test Series',filter:'test',home:'IND',away:'ENG',time:'Sun 13 Apr • 9:30 AM IST',venue:'Ahmedabad',isLive:false,homeForm:['w','w','d','w','w'],awayForm:['w','l','w','d','w'],homeProb:61,pitch:'Dry, crumbling. Spin from Day 2.',weather:'36°C, Hot and dry.',toss:'Batting first strongly advised.',homeSquad:['Rohit','Gill','Kohli','Jadeja','Ashwin','Bumrah'],awaySquad:['Crawley','Duckett','Root','Stokes','Archer','Bashir'],keyPlayers:['Ashwin','Root','Jadeja','Bumrah']},
+  ];
+  renderFixtures();
+}
 
 // ── Stats data ─────────────────────────────────────────────
 const BATTING_STATS = [
@@ -643,7 +730,7 @@ function init() {
   if (apiKey) document.getElementById('setupCard').style.display = 'none';
   if (settings.dark) document.body.classList.add('dark');
   applyToggles();
-  renderFixtures();
+  loadFixtures();
   renderStats('batting');
   renderSaved();
   renderSettingsTeams();
