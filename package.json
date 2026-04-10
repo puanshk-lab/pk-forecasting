@@ -1,0 +1,8 @@
+{
+  "name": "pk-forecasting",
+  "version": "1.0.0",
+  "description": "PK Forecasting cricket prediction app",
+  "scripts": {
+    "build": "echo done"
+  }
+}
