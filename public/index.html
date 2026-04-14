@@ -717,7 +717,8 @@ async function loadFixtures() {
     sessionStorage.setItem('pkf_fixtures', JSON.stringify(FIXTURES));
     sessionStorage.setItem('pkf_fixtures_time', Date.now().toString());
     renderFixtures();
-    enrichFixtures();
+    // Wait 5 seconds before enriching to avoid rate limit
+    setTimeout(enrichFixtures, 5000);
 
   } catch(e) {
     console.log('Claude fixture fetch failed:', e);
@@ -727,7 +728,7 @@ async function loadFixtures() {
 
 async function enrichFixtures() {
   // Only enrich matches that haven't been cached yet
-  const toEnrich = FIXTURES.filter(f => !f.enriched).slice(0, 3);
+  const toEnrich = FIXTURES.filter(f => !f.enriched).slice(0, 2);
   if (toEnrich.length === 0) return;
 
   // Build a single prompt asking Claude to enrich all matches at once
@@ -738,8 +739,8 @@ async function enrichFixtures() {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1200,
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
         system: 'Cricket analyst. Search web for current form and venue info. Return ONLY a JSON array, no markdown. April 2026, IPL 2026 in progress.',
         messages: [{
           role: 'user',
