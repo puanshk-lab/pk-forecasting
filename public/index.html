@@ -974,21 +974,23 @@ async function fetchPred(id) {
   if (!f) return;
   const steps = ['s1','s2','s3','s4'];
   for (let i=0;i<steps.length;i++) { await delay(600+i*500); document.getElementById(steps[i]+'-'+id)?.classList.add('done'); }
-  if (!apiKey) { const d = demoPred(f); detailCache[id]=d; renderDetail(id,d,'pred'); updateBubble(id,d); return; }
+  // Always try — backend handles API key
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages',{
+    const res = await fetch('/.netlify/functions/claude',{
       method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         model:'claude-sonnet-4-20250514',max_tokens:1000,
         system:'You are an expert cricket analyst. Respond with valid JSON only — no markdown.',
-        messages:[{role:'user',content:'Analyse: '+(TEAMS[f.home]?.name||f.home)+' vs '+(TEAMS[f.away]?.name||f.away)+' | '+f.tournament+' | '+f.venue+' | Pitch: '+f.pitch+' | Weather: '+f.weather+' | Toss: '+f.toss+' | Home form: '+f.homeForm.join(',')+' | Away form: '+f.awayForm.join(',')+' | Key players: '+f.keyPlayers.join(', ')+'\nSearch web for current form, injuries, head to head.\nReturn JSON: {"homeScore":"","awayScore":"","motm":"","motmReason":"","topBatter":"","topBatterRuns":"","topBowler":"","topBowlerWickets":"","keyBattle":"","keyBattleDetail":"","analysis":"","confidence":72,"bubbleSummary":""}'}],
+        messages:[{role:'user',content:'Analyse: '+(TEAMS[f.home]?.name||f.home)+' vs '+(TEAMS[f.away]?.name||f.away)+' | '+f.tournament+' | '+f.venue+' | Home form: '+f.homeForm.join(',')+' | Away form: '+f.awayForm.join(',')+'\nSearch web for current form, injuries, head to head. Return JSON: {"homeScore":"","awayScore":"","motm":"","motmReason":"","topBatter":"","topBatterRuns":"","topBowler":"","topBowlerWickets":"","keyBattle":"","keyBattleDetail":"","analysis":"","confidence":72,"bubbleSummary":""}'}],
         tools:[{type:'web_search_20250305',name:'web_search'}]
       })
     });
     const data = await res.json();
     const raw = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('').trim();
-    const pred = JSON.parse(raw.replace(/```json|```/g,'').trim());
+    const jsonMatch = raw.match(/\{.*\}/s);
+    if (!jsonMatch) throw new Error('No JSON found');
+    const pred = JSON.parse(jsonMatch[0]);
     detailCache[id]=pred; renderDetail(id,pred,'pred'); updateBubble(id,pred);
     autoSavePred(f, pred);
   } catch(e) { const d=demoPred(f); detailCache[id]=d; renderDetail(id,d,'pred'); updateBubble(id,d); }
