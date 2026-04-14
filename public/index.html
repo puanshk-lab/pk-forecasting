@@ -658,14 +658,13 @@ async function loadFixtures() {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 2000,
-        system: 'You are a cricket data assistant. Search the web for current cricket fixtures. Return ONLY valid JSON, no markdown, no explanation.',
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        system: 'You are a cricket data assistant. Return ONLY valid JSON, no markdown.',
         messages: [{
           role: 'user',
-          content: 'Search for all cricket matches happening today, tomorrow and this week (April 2026). Include IPL 2026, international matches (Test, ODI, T20I). Return a JSON array of matches: [{"home":"team name","away":"team name","tournament":"IPL 2026","matchType":"t20","venue":"venue name","date":"Wed 15 Apr","time":"7:30 PM IST","isLive":false}]. Include up to 15 matches. For matchType use: t20, test, odi, t20i. For IPL matches use tournament "IPL 2026".'
-        }],
-        tools: [{type: 'web_search_20250305', name: 'web_search'}]
+          content: 'List upcoming IPL 2026 and international cricket matches for the week of 15 April 2026. Use your knowledge of the IPL 2026 schedule. Return a JSON array: [{"home":"team name","away":"team name","tournament":"IPL 2026","matchType":"t20","venue":"venue name","date":"Wed 15 Apr","time":"7:30 PM IST","isLive":false}]. Include up to 10 matches. matchType: t20/test/odi/t20i.'
+        }]
       })
     });
 
