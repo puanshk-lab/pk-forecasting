@@ -336,18 +336,18 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
           <div class="logo-sub">Built overnight · AI cricket predictions</div>
         </div>
       </div>
-      <div class="live-badge"><div class="live-dot"></div>Live</div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+        <div class="live-badge"><div class="live-dot"></div>Live</div>
+        <div id="currentDate" style="font-size:11px;color:var(--text2);font-weight:500;"></div>
+      </div>
     </div>
 
     <div class="setup-card" id="setupCard">
       <div class="setup-title">⚡ Add your API keys to unlock live predictions</div>
-      <div class="setup-desc">Get your Anthropic key at <a href="https://platform.anthropic.com" target="_blank">platform.anthropic.com</a> and cricket data key at <a href="https://cricketdata.org" target="_blank">cricketdata.org</a></div>
+      <div class="setup-desc">Get your free Anthropic API key at <a href="https://platform.anthropic.com" target="_blank">platform.anthropic.com</a> — takes 2 minutes.</div>
       <div class="setup-row">
         <input class="setup-input" id="apiInput" type="password" placeholder="Anthropic key: sk-ant-..."/>
         <button class="setup-btn" onclick="saveKeys()">Save</button>
-      </div>
-      <div class="setup-row">
-        <input class="setup-input" id="cricketInput" type="password" placeholder="Cricket data key..."/>
       </div>
     </div>
 
@@ -625,58 +625,197 @@ function getMatchType(match) {
   return {label:'Cricket', filter:'all'};
 }
 
+// Cache enriched fixture data to avoid repeated API calls
+let enrichCache = JSON.parse(sessionStorage.getItem('pkf_enrich') || '{}');
+
+// Keywords that need web search vs general knowledge
+const NEEDS_SEARCH_KEYWORDS = ['today','tonight','tomorrow','this week','current','live','score','result','who won','who wins','latest','playing','form','injury','injured','news','squad','line-up','lineup','weather','pitch','toss','ipl 2026','standings','points table','ranking'];
+function needsWebSearch(text) {
+  const t = text.toLowerCase();
+  return NEEDS_SEARCH_KEYWORDS.some(k => t.includes(k));
+}
+
 async function loadFixtures() {
   document.getElementById('fixtureCount').textContent = 'Loading...';
-  document.getElementById('fixturesContainer').innerHTML = '<div style="padding:20px;text-align:center;color:var(--text2);font-size:13px;">Fetching live fixtures...</div>';
+  document.getElementById('fixturesContainer').innerHTML = '<div style="padding:24px;text-align:center;color:var(--text2);font-size:13px;line-height:2;">🏏 Fetching live fixtures...</div>';
+  
+  // Check session cache first
+  const cached = sessionStorage.getItem('pkf_fixtures');
+  const cacheTime = sessionStorage.getItem('pkf_fixtures_time');
+  const cacheAge = cacheTime ? (Date.now() - parseInt(cacheTime)) / 1000 / 60 : 999;
+  
+  if (cached && cacheAge < 30) {
+    // Use cached fixtures if less than 30 minutes old
+    FIXTURES = JSON.parse(cached);
+    fixturesLoaded = true;
+    renderFixtures();
+    return;
+  }
+
   try {
-    const res = await fetch('/.netlify/functions/cricket?path=currentMatches');
+    // Use Claude Haiku (fast + cheap) to fetch fixtures via web search
+    const res = await fetch('/.netlify/functions/claude', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 2000,
+        system: 'You are a cricket data assistant. Search the web for current cricket fixtures. Return ONLY valid JSON, no markdown, no explanation.',
+        messages: [{
+          role: 'user',
+          content: 'Search for all cricket matches happening today, tomorrow and this week (April 2026). Include IPL 2026, international matches (Test, ODI, T20I). Return a JSON array of matches: [{"home":"team name","away":"team name","tournament":"IPL 2026","matchType":"t20","venue":"venue name","date":"Wed 15 Apr","time":"7:30 PM IST","isLive":false}]. Include up to 15 matches. For matchType use: t20, test, odi, t20i. For IPL matches use tournament "IPL 2026".'
+        }],
+        tools: [{type: 'web_search_20250305', name: 'web_search'}]
+      })
+    });
+
     const data = await res.json();
-    if (data.data && data.data.length > 0) {
-      FIXTURES = data.data.filter(m => m.teams && m.teams.length >= 2).map((m, i) => {
-        const home = guessTeamCode(m.teams[0]);
-        const away = guessTeamCode(m.teams[1]);
-        const type = getMatchType(m);
-        const isLive = m.matchStarted && !m.matchEnded;
-        const dateObj = m.date ? new Date(m.date) : null;
-        const timeStr = dateObj ? dateObj.toLocaleDateString('en-IN', {weekday:'short', day:'numeric', month:'short'}) + ' • ' + dateObj.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'}) + ' IST' : 'Date TBC';
-        return {
-          id: m.id || ('f'+i),
-          tournament: type.label,
-          filter: type.filter,
-          home: home,
-          away: away,
-          homeFull: m.teams[0],
-          awayFull: m.teams[1],
-          time: isLive ? 'LIVE NOW' : timeStr,
-          venue: m.venue || 'Venue TBC',
-          isLive: isLive,
-          homeForm: ['w','w','l','w','w'],
-          awayForm: ['l','w','w','l','w'],
-          homeProb: 50,
-          pitch: 'Pitch report coming soon.',
-          weather: 'Weather data coming soon.',
-          toss: 'Toss information coming soon.',
-          homeSquad: [],
-          awaySquad: [],
-          keyPlayers: []
-        };
-      });
-      fixturesLoaded = true;
-      renderFixtures();
-    } else {
-      useFallbackFixtures();
-    }
+    const raw = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+    const clean = raw.replace(/```json|```/g, '').trim();
+    const matches = JSON.parse(clean);
+
+    FIXTURES = matches.map((m, i) => {
+      const home = guessTeamCode(m.home);
+      const away = guessTeamCode(m.away);
+      const filter = m.matchType === 'test' ? 'test' : m.matchType === 'odi' ? 'odi' : m.matchType === 't20i' ? 't20i' : m.tournament.toLowerCase().includes('ipl') ? 'ipl' : 'all';
+      const cachedEnrich = enrichCache[home+away+m.date];
+      return {
+        id: home + away + i,
+        tournament: m.tournament,
+        filter: filter,
+        home: home,
+        away: away,
+        homeFull: m.home,
+        awayFull: m.away,
+        time: m.isLive ? 'LIVE NOW' : (m.date + ' • ' + m.time),
+        venue: m.venue || 'Venue TBC',
+        isLive: m.isLive || false,
+        homeForm: cachedEnrich ? cachedEnrich.homeForm : ['?','?','?','?','?'],
+        awayForm: cachedEnrich ? cachedEnrich.awayForm : ['?','?','?','?','?'],
+        homeProb: cachedEnrich ? cachedEnrich.homeProb : 50,
+        pitch: cachedEnrich ? cachedEnrich.pitch : 'Tap to load pitch report',
+        weather: cachedEnrich ? cachedEnrich.weather : 'Tap to load weather',
+        toss: cachedEnrich ? cachedEnrich.toss : 'Tap to load toss insight',
+        homeSquad: cachedEnrich ? cachedEnrich.homeSquad : [],
+        awaySquad: cachedEnrich ? cachedEnrich.awaySquad : [],
+        keyPlayers: cachedEnrich ? cachedEnrich.keyPlayers : [],
+        enriched: !!cachedEnrich
+      };
+    });
+
+    fixturesLoaded = true;
+    // Cache for 30 minutes
+    sessionStorage.setItem('pkf_fixtures', JSON.stringify(FIXTURES));
+    sessionStorage.setItem('pkf_fixtures_time', Date.now().toString());
+    renderFixtures();
+    enrichFixtures();
+
   } catch(e) {
+    console.log('Claude fixture fetch failed:', e);
     useFallbackFixtures();
   }
 }
 
+async function enrichFixtures() {
+  // Only enrich matches that haven't been cached yet
+  const toEnrich = FIXTURES.filter(f => !f.enriched).slice(0, 6);
+  if (toEnrich.length === 0) return;
+
+  // Build a single prompt asking Claude to enrich all matches at once
+  const matchList = toEnrich.map((f,i) => `${i+1}. ${f.homeFull} vs ${f.awayFull} | ${f.tournament} | ${f.venue} | ${f.time}`).join('\n');
+
+  try {
+    const res = await fetch('/.netlify/functions/claude', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 2000,
+        system: 'You are a cricket analyst. Search the web for current form, recent results, and venue info for these matches. Respond ONLY with a JSON array, no markdown. Today is April 2026. IPL 2026 is in progress.',
+        messages: [{
+          role: 'user',
+          content: `For each of these cricket matches, provide enrichment data. Search for current team form and venue details.
+
+${matchList}
+
+Return a JSON array with one object per match in this exact format:
+[
+  {
+    "index": 0,
+    "homeProb": 58,
+    "homeForm": ["w","w","l","w","w"],
+    "awayForm": ["l","w","w","l","w"],
+    "pitch": "One sentence about pitch conditions at this venue.",
+    "weather": "Temperature and conditions forecast.",
+    "toss": "One sentence about toss advantage at this venue.",
+    "homeSquad": ["Player1","Player2","Player3","Player4","Player5"],
+    "awaySquad": ["Player1","Player2","Player3","Player4","Player5"],
+    "keyPlayers": ["Player1","Player2"],
+    "bubbleSummary": "One punchy sentence prediction."
+  }
+]
+
+homeProb should be between 35 and 75 based on current form and conditions. Form arrays use "w" for win, "l" for loss, "d" for draw/no result.`
+        }],
+        tools: [{type: 'web_search_20250305', name: 'web_search'}]
+      })
+    });
+
+    const data = await res.json();
+    const raw = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+    const clean = raw.replace(/```json|```/g, '').trim();
+    const enriched = JSON.parse(clean);
+
+    // Apply enrichment to fixtures
+    enriched.forEach(e => {
+      const f = toEnrich[e.index];
+      if (!f) return;
+      f.homeProb = e.homeProb;
+      f.homeForm = e.homeForm;
+      f.awayForm = e.awayForm;
+      f.pitch = e.pitch;
+      f.weather = e.weather;
+      f.toss = e.toss;
+      f.homeSquad = e.homeSquad || [];
+      f.awaySquad = e.awaySquad || [];
+      f.keyPlayers = e.keyPlayers || [];
+      f.enriched = true;
+      if (e.bubbleSummary) {
+        const bubble = document.getElementById('bubble-' + f.id);
+        if (bubble) bubble.innerHTML = '<strong>' + e.bubbleSummary + '</strong>';
+      }
+      // Cache to session storage
+      enrichCache[f.id] = {
+        homeProb: f.homeProb, homeForm: f.homeForm, awayForm: f.awayForm,
+        pitch: f.pitch, weather: f.weather, toss: f.toss,
+        homeSquad: f.homeSquad, awaySquad: f.awaySquad, keyPlayers: f.keyPlayers
+      };
+    });
+
+    sessionStorage.setItem('pkf_enrich', JSON.stringify(enrichCache));
+
+    // Re-render to show updated probabilities
+    renderFixtures();
+
+  } catch(e) {
+    console.log('Enrichment failed:', e);
+  }
+}
+
 function useFallbackFixtures() {
+  // Generate fallback fixtures with real dates dynamically
+  const now = new Date();
+  const fmt = (d) => d.toLocaleDateString('en-GB', {weekday:'short', day:'numeric', month:'short'});
+  const d0 = fmt(now);
+  const d1 = fmt(new Date(now.getTime() + 86400000));
+  const d2 = fmt(new Date(now.getTime() + 2*86400000));
+  const d3 = fmt(new Date(now.getTime() + 3*86400000));
+
   FIXTURES = [
-    {id:'f1',tournament:'IPL 2026',filter:'ipl',home:'RCB',away:'LSG',time:'Today • 7:30 PM IST',venue:'Chinnaswamy',isLive:false,homeForm:['w','w','l','w','w'],awayForm:['l','w','w','l','w'],homeProb:58,pitch:'Flat batting surface. High scoring expected.',weather:'28°C, Clear. High dew after 9pm.',toss:'Chasing team wins 7 of last 9 here.',homeSquad:['Kohli','du Plessis','Maxwell','Raza','Hazlewood','Siraj'],awaySquad:['Rahul','Pooran','Stoinis','Mohsin','Bishnoi','Krunal'],keyPlayers:['Kohli','Pooran','Hazlewood','Bishnoi']},
-    {id:'f2',tournament:'IPL 2026',filter:'ipl',home:'MI',away:'GT',time:'Tomorrow • 7:30 PM IST',venue:'Wankhede',isLive:false,homeForm:['w','l','w','w','l'],awayForm:['w','w','d','w','w'],homeProb:45,pitch:'Good pace and bounce. Seamers get movement.',weather:'31°C, Humid. Light westerly wind.',toss:'Both captains prefer chasing here.',homeSquad:['Rohit','Ishan','Hardik','Bumrah','Surya','Pollard'],awaySquad:['Gill','Sudharsan','Rashid','Shami','Tewatia','Sai Sudharsan'],keyPlayers:['Bumrah','Gill','Rohit','Rashid']},
-    {id:'f3',tournament:'IPL 2026',filter:'ipl',home:'CSK',away:'PBKS',time:'Sat 12 Apr • 3:30 PM IST',venue:'Chepauk',isLive:false,homeForm:['w','w','w','l','w'],awayForm:['l','l','w','w','l'],homeProb:67,pitch:'Spin-friendly, slow and low.',weather:'34°C, Partly cloudy. No rain.',toss:'Home advantage significant at Chepauk.',homeSquad:['Dhoni','Gaikwad','Conway','Jadeja','Deepak','Ravindra'],awaySquad:['Bairstow','Livingstone','Shashank','Arshdeep','Curran','Prabhsimran'],keyPlayers:['Jadeja','Livingstone','Gaikwad','Arshdeep']},
-    {id:'f4',tournament:'Test Series',filter:'test',home:'IND',away:'ENG',time:'Sun 13 Apr • 9:30 AM IST',venue:'Ahmedabad',isLive:false,homeForm:['w','w','d','w','w'],awayForm:['w','l','w','d','w'],homeProb:61,pitch:'Dry, crumbling. Spin from Day 2.',weather:'36°C, Hot and dry.',toss:'Batting first strongly advised.',homeSquad:['Rohit','Gill','Kohli','Jadeja','Ashwin','Bumrah'],awaySquad:['Crawley','Duckett','Root','Stokes','Archer','Bashir'],keyPlayers:['Ashwin','Root','Jadeja','Bumrah']},
+    {id:'f1',tournament:'IPL 2026',filter:'ipl',home:'RCB',away:'LSG',time:d0+' • 7:30 PM IST',venue:'Chinnaswamy',isLive:false,homeForm:['w','w','l','w','w'],awayForm:['l','w','w','l','w'],homeProb:58,pitch:'Flat batting surface. High scoring expected.',weather:'28°C, Clear. High dew after 9pm.',toss:'Chasing team wins 7 of last 9 here.',homeSquad:['Kohli','du Plessis','Maxwell','Raza','Hazlewood','Siraj'],awaySquad:['Rahul','Pooran','Stoinis','Mohsin','Bishnoi','Krunal'],keyPlayers:['Kohli','Pooran','Hazlewood','Bishnoi']},
+    {id:'f2',tournament:'IPL 2026',filter:'ipl',home:'CSK',away:'KKR',time:d1+' • 7:30 PM IST',venue:'Chepauk',isLive:false,homeForm:['w','w','w','l','w'],awayForm:['l','w','w','w','l'],homeProb:62,pitch:'Spin-friendly surface. Chepauk tends to assist off-spin from over 8.',weather:'34°C, Hot and humid. No rain forecast.',toss:'Home advantage significant at Chepauk. CSK win toss 65% here.',homeSquad:['Dhoni','Gaikwad','Conway','Jadeja','Deepak','Ravindra'],awaySquad:['Rahane','Narine','Russell','Starc','Iyer','Chakravarthy'],keyPlayers:['Jadeja','Narine','Gaikwad','Russell']},
+    {id:'f3',tournament:'IPL 2026',filter:'ipl',home:'SRH',away:'RR',time:d2+' • 7:30 PM IST',venue:'Rajiv Gandhi Stadium',isLive:false,homeForm:['l','w','l','w','w'],awayForm:['w','l','w','w','l'],homeProb:51,pitch:'Good bounce and pace. High scoring venue historically.',weather:'32°C, Partly cloudy. Dew possible in 2nd innings.',toss:'Toss neutral at this venue. Both batting and chasing records similar.',homeSquad:['Head','Abhishek','Klaasen','Bhuvneshwar','Cummins','Shahbaz'],awaySquad:['Buttler','Parag','Samson','Chahal','Sandeep','Boult'],keyPlayers:['Head','Buttler','Cummins','Chahal']},
+    {id:'f4',tournament:'IPL 2026',filter:'ipl',home:'DC',away:'PBKS',time:d3+' • 7:30 PM IST',venue:'Arun Jaitley Stadium',isLive:false,homeForm:['l','l','w','l','w'],awayForm:['w','w','l','l','w'],homeProb:44,pitch:'Flat pitch. High scores common. Spinners effective in middle overs.',weather:'33°C, Clear skies. Dry conditions throughout.',toss:'Chasing team has slight advantage at this venue in recent matches.',homeSquad:['Warner','Shaw','Pant','Kuldeep','Axar','Mustafizur'],awaySquad:['Bairstow','Livingstone','Shashank','Arshdeep','Curran','Prabhsimran'],keyPlayers:['Kuldeep','Livingstone','Warner','Arshdeep']},
   ];
   renderFixtures();
 }
@@ -730,6 +869,12 @@ function init() {
   if (apiKey) document.getElementById('setupCard').style.display = 'none';
   if (settings.dark) document.body.classList.add('dark');
   applyToggles();
+  // Show current date in header
+  const dateEl = document.getElementById('currentDate');
+  if (dateEl) {
+    const now = new Date();
+    dateEl.textContent = now.toLocaleDateString('en-GB', {weekday:'short', day:'numeric', month:'short', year:'numeric'});
+  }
   loadFixtures();
   renderStats('batting');
   renderSaved();
@@ -740,12 +885,12 @@ function init() {
 // ── Keys ───────────────────────────────────────────────────
 function saveKeys() {
   const ak = document.getElementById('apiInput').value.trim();
-  const ck = document.getElementById('cricketInput').value.trim();
-  if (ak && !ak.startsWith('sk-ant-')) { alert('Anthropic key should start with sk-ant-'); return; }
-  if (ak) { apiKey = ak; localStorage.setItem('pkf_claude', ak); }
-  if (ck) { cricketKey = ck; localStorage.setItem('pkf_cricket', ck); }
+  if (!ak.startsWith('sk-ant-')) { alert('Key should start with sk-ant-'); return; }
+  apiKey = ak;
+  localStorage.setItem('pkf_claude', ak);
   document.getElementById('setupCard').style.display = 'none';
-  addChatMsg('ai', '✅ Keys saved! I can now generate live AI predictions and pull real cricket data. Ask me anything!');
+  addChatMsg('ai', '✅ API key saved! I can now search for live fixtures, generate real predictions and answer any cricket question. Ask me anything!');
+  loadFixtures();
 }
 
 // ── Page navigation ────────────────────────────────────────
@@ -758,7 +903,13 @@ function switchPage(name, el) {
 
 // ── Fixture rendering ──────────────────────────────────────
 function renderFixtures() {
-  const list = activeFilter === 'all' ? FIXTURES : FIXTURES.filter(f => f.filter === activeFilter);
+  const list = activeFilter === 'all' ? FIXTURES : FIXTURES.filter(f => {
+    if (activeFilter === 'ipl') return f.filter === 'ipl' || f.tournament.toLowerCase().includes('ipl');
+    if (activeFilter === 'test') return f.filter === 'test' || f.tournament.toLowerCase().includes('test');
+    if (activeFilter === 'odi') return f.filter === 'odi' || f.tournament.toLowerCase().includes('odi');
+    if (activeFilter === 't20i') return f.filter === 't20i' || f.tournament.toLowerCase().includes('t20');
+    return f.filter === activeFilter;
+  });
   // Sort fav teams first
   list.sort((a,b) => {
     const aFav = favTeams.includes(a.home)||favTeams.includes(a.away) ? 0 : 1;
@@ -1092,25 +1243,69 @@ async function sendChat() {
   document.getElementById('sendBtn').disabled=true;
   addChatMsg('user',txt);
   if (!apiKey) { addChatMsg('ai','Add your Anthropic API key at the top to enable live AI analysis!'); chatLoading=false; document.getElementById('sendBtn').disabled=false; return; }
-  addChatLoading();
+  
+  // Add streaming message bubble
+  const c = document.getElementById('chatMessages');
+  const streamDiv = document.createElement('div');
+  streamDiv.className = 'cmsg ai';
+  streamDiv.id = 'streamMsg';
+  streamDiv.innerHTML = '<div class="cmsg-av">AI</div><div class="cmsg-bubble" id="streamBubble"><div class="think-dots"><span></span><span></span><span></span></div></div>';
+  c.appendChild(streamDiv);
+  c.scrollTop = c.scrollHeight;
+
   chatHistory.push({role:'user',content:txt});
+  
+  // Decide whether to use web search based on question content
+  const useSearch = needsWebSearch(txt);
+  const today = new Date().toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+
   try {
-    const res=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',max_tokens:1000,
-        system:'You are an expert cricket analyst for PK Forecasting. Today is April 10, 2026. IPL 2026 is live. Use web search for real current data. Give direct confident predictions with reasoning. 4-6 sentences max. Plain text only.',
-        messages:chatHistory,
-        tools:[{type:'web_search_20250305',name:'web_search'}]
-      })
+    const body = {
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      stream: true,
+      system: 'You are an expert cricket analyst for PK Forecasting. Today is ' + today + '. IPL 2026 is currently in progress. Give direct confident predictions with clear reasoning. 4-6 sentences max. Plain text only, no markdown.',
+      messages: chatHistory
+    };
+    
+    // Only add web search tool when actually needed
+    if (useSearch) {
+      body.tools = [{type: 'web_search_20250305', name: 'web_search'}];
+    }
+
+    const res = await fetch('/.netlify/functions/claude', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
     });
-    const data=await res.json();
-    const reply=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join(' ').trim();
-    chatHistory.push({role:'assistant',content:data.content||[]});
-    document.getElementById('chatLoad')?.remove();
-    addChatMsg('ai',reply||"I couldn't find that — try rephrasing.");
-  } catch(e){ document.getElementById('chatLoad')?.remove(); addChatMsg('ai','Something went wrong. Check your API key and try again.'); }
+
+    const data = await res.json();
+    const reply = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join(' ').trim();
+    chatHistory.push({role:'assistant', content: data.content||[]});
+    
+    // Animate text appearing word by word (streaming simulation)
+    const bubble = document.getElementById('streamBubble');
+    if (bubble && reply) {
+      bubble.innerHTML = '';
+      const words = reply.split(' ');
+      let i = 0;
+      const interval = setInterval(() => {
+        if (i < words.length) {
+          bubble.innerHTML += (i > 0 ? ' ' : '') + words[i];
+          c.scrollTop = c.scrollHeight;
+          i++;
+        } else {
+          clearInterval(interval);
+          streamDiv.id = '';
+        }
+      }, 30);
+    } else if (bubble) {
+      bubble.innerHTML = "I couldn't find that — try rephrasing.";
+    }
+  } catch(e) {
+    const bubble = document.getElementById('streamBubble');
+    if (bubble) bubble.innerHTML = 'Something went wrong. Please try again.';
+  }
   chatLoading=false; document.getElementById('sendBtn').disabled=false;
 }
 
