@@ -653,76 +653,58 @@ async function loadFixtures() {
   }
 
   try {
-    // Use Claude Haiku (fast + cheap) to fetch fixtures via web search
-    const res = await fetch('/.netlify/functions/claude', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1500,
-        system: 'You are a cricket data assistant. Return ONLY valid JSON, no markdown.',
-        messages: [{
-          role: 'user',
-          content: 'List upcoming IPL 2026 and international cricket matches for the week of 15 April 2026. Use your knowledge of the IPL 2026 schedule. Return a JSON array: [{"home":"team name","away":"team name","tournament":"IPL 2026","matchType":"t20","venue":"venue name","date":"Wed 15 Apr","time":"7:30 PM IST","isLive":false}]. Include up to 10 matches. matchType: t20/test/odi/t20i.'
-        }]
-      })
-    });
-
+    const res = await fetch('/.netlify/functions/cricket?path=currentMatches');
     const data = await res.json();
-    
-    // Handle API errors
-    if (data.error) throw new Error(data.error.message);
-    
-    // Extract text from response — handle tool use blocks too
-    const raw = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
-    if (!raw) throw new Error('Empty response from Claude');
-    
-    // Find JSON array in response — Claude sometimes adds text before/after
-    const jsonMatch = raw.match(/\[.*\]/s);
-    if (!jsonMatch) throw new Error('No JSON array found in response');
-    const matches = JSON.parse(jsonMatch[0]);
 
-    FIXTURES = matches.map((m, i) => {
-      const home = guessTeamCode(m.home);
-      const away = guessTeamCode(m.away);
-      const filter = m.matchType === 'test' ? 'test' : m.matchType === 'odi' ? 'odi' : m.matchType === 't20i' ? 't20i' : m.tournament.toLowerCase().includes('ipl') ? 'ipl' : 'all';
-      const cachedEnrich = enrichCache[home+away+m.date];
-      return {
-        id: home + away + i,
-        tournament: m.tournament,
-        filter: filter,
-        home: home,
-        away: away,
-        homeFull: m.home,
-        awayFull: m.away,
-        time: m.isLive ? 'LIVE NOW' : (m.date + ' • ' + m.time),
-        venue: m.venue || 'Venue TBC',
-        isLive: m.isLive || false,
-        homeForm: cachedEnrich ? cachedEnrich.homeForm : ['?','?','?','?','?'],
-        awayForm: cachedEnrich ? cachedEnrich.awayForm : ['?','?','?','?','?'],
-        homeProb: cachedEnrich ? cachedEnrich.homeProb : 50,
-        pitch: cachedEnrich ? cachedEnrich.pitch : 'Tap to load pitch report',
-        weather: cachedEnrich ? cachedEnrich.weather : 'Tap to load weather',
-        toss: cachedEnrich ? cachedEnrich.toss : 'Tap to load toss insight',
-        homeSquad: cachedEnrich ? cachedEnrich.homeSquad : [],
-        awaySquad: cachedEnrich ? cachedEnrich.awaySquad : [],
-        keyPlayers: cachedEnrich ? cachedEnrich.keyPlayers : [],
-        enriched: !!cachedEnrich
-      };
-    });
+    if (data.data && data.data.length > 0) {
+      FIXTURES = data.data.filter(m => m.teams && m.teams.length >= 2).slice(0, 20).map((m, i) => {
+        const home = guessTeamCode(m.teams[0]);
+        const away = guessTeamCode(m.teams[1]);
+        const type = getMatchType(m);
+        const isLive = m.matchStarted && !m.matchEnded;
+        const dateObj = m.date ? new Date(m.date) : null;
+        const timeStr = dateObj
+          ? dateObj.toLocaleDateString('en-GB', {weekday:'short', day:'numeric', month:'short'}) + ' • ' + dateObj.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'}) + ' IST'
+          : 'Date TBC';
+        const cachedEnrich = enrichCache[m.id];
+        return {
+          id: m.id || ('f'+i),
+          tournament: type.label,
+          filter: type.filter,
+          home: home,
+          away: away,
+          homeFull: m.teams[0],
+          awayFull: m.teams[1],
+          time: isLive ? 'LIVE NOW' : timeStr,
+          venue: m.venue || 'Venue TBC',
+          isLive: isLive,
+          homeForm: cachedEnrich ? cachedEnrich.homeForm : ['?','?','?','?','?'],
+          awayForm: cachedEnrich ? cachedEnrich.awayForm : ['?','?','?','?','?'],
+          homeProb: cachedEnrich ? cachedEnrich.homeProb : 50,
+          pitch: cachedEnrich ? cachedEnrich.pitch : 'Tap card for pitch report',
+          weather: cachedEnrich ? cachedEnrich.weather : 'Tap card for weather',
+          toss: cachedEnrich ? cachedEnrich.toss : 'Tap card for toss insight',
+          homeSquad: cachedEnrich ? cachedEnrich.homeSquad : [],
+          awaySquad: cachedEnrich ? cachedEnrich.awaySquad : [],
+          keyPlayers: cachedEnrich ? cachedEnrich.keyPlayers : [],
+          enriched: !!cachedEnrich
+        };
+      });
 
-    fixturesLoaded = true;
-    // Cache for 30 minutes
-    sessionStorage.setItem('pkf_fixtures', JSON.stringify(FIXTURES));
-    sessionStorage.setItem('pkf_fixtures_time', Date.now().toString());
-    renderFixtures();
-    // Wait 5 seconds before enriching to avoid rate limit
-    setTimeout(enrichFixtures, 5000);
+      fixturesLoaded = true;
+      sessionStorage.setItem('pkf_fixtures', JSON.stringify(FIXTURES));
+      sessionStorage.setItem('pkf_fixtures_time', Date.now().toString());
+      renderFixtures();
+      setTimeout(enrichFixtures, 3000);
 
+    } else {
+      useFallbackFixtures();
+    }
   } catch(e) {
-    console.log('Claude fixture fetch failed:', e);
+    console.log('Fixture fetch failed:', e);
     useFallbackFixtures();
   }
+
 }
 
 async function enrichFixtures() {
