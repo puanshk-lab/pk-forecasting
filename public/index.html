@@ -727,7 +727,7 @@ async function loadFixtures() {
 
 async function enrichFixtures() {
   // Only enrich matches that haven't been cached yet
-  const toEnrich = FIXTURES.filter(f => !f.enriched).slice(0, 6);
+  const toEnrich = FIXTURES.filter(f => !f.enriched).slice(0, 3);
   if (toEnrich.length === 0) return;
 
   // Build a single prompt asking Claude to enrich all matches at once
@@ -739,32 +739,11 @@ async function enrichFixtures() {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 2000,
-        system: 'You are a cricket analyst. Search the web for current form, recent results, and venue info for these matches. Respond ONLY with a JSON array, no markdown. Today is April 2026. IPL 2026 is in progress.',
+        max_tokens: 1200,
+        system: 'Cricket analyst. Search web for current form and venue info. Return ONLY a JSON array, no markdown. April 2026, IPL 2026 in progress.',
         messages: [{
           role: 'user',
-          content: `For each of these cricket matches, provide enrichment data. Search for current team form and venue details.
-
-${matchList}
-
-Return a JSON array with one object per match in this exact format:
-[
-  {
-    "index": 0,
-    "homeProb": 58,
-    "homeForm": ["w","w","l","w","w"],
-    "awayForm": ["l","w","w","l","w"],
-    "pitch": "One sentence about pitch conditions at this venue.",
-    "weather": "Temperature and conditions forecast.",
-    "toss": "One sentence about toss advantage at this venue.",
-    "homeSquad": ["Player1","Player2","Player3","Player4","Player5"],
-    "awaySquad": ["Player1","Player2","Player3","Player4","Player5"],
-    "keyPlayers": ["Player1","Player2"],
-    "bubbleSummary": "One punchy sentence prediction."
-  }
-]
-
-homeProb should be between 35 and 75 based on current form and conditions. Form arrays use "w" for win, "l" for loss, "d" for draw/no result.`
+          content: `Search for current form and venue info for these matches:\n${matchList}\n\nReturn JSON array only:\n[{"index":0,"homeProb":58,"homeForm":["w","w","l","w","w"],"awayForm":["l","w","w","l","w"],"pitch":"One sentence.","weather":"Temp and conditions.","toss":"One sentence.","homeSquad":["P1","P2","P3","P4","P5"],"awaySquad":["P1","P2","P3","P4","P5"],"keyPlayers":["P1","P2"],"bubbleSummary":"One sentence prediction."}]\nhomeProb 35-75. Form: w/l/d.`
         }],
         tools: [{type: 'web_search_20250305', name: 'web_search'}]
       })
